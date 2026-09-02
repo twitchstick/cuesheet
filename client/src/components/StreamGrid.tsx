@@ -48,7 +48,8 @@ function StreamCard({ stream }: { stream: Stream }) {
           <StateIcon className={`mt-0.5 h-4 w-4 shrink-0 ${stream.state === 'paused' ? 'text-fog-500' : 'text-accent-400'} ${stream.state === 'buffering' ? 'animate-spin' : ''}`} fill={stream.state === 'playing' ? 'currentColor' : 'none'} />
         </div>
         <p className="mt-1 truncate text-xs text-fog-500">
-          {stream.user} · {stream.player}
+          {stream.user ? `${stream.user} · ` : ''}
+          {stream.player}
           {stream.device && stream.device !== stream.player ? ` (${stream.device})` : ''}
           {stream.location ? ` · ${stream.location === 'remote' ? 'Remote' : 'Local'}` : ''}
         </p>

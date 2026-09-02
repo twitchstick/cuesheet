@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Eye, EyeOff, Loader2, Lock, Plug, Trash2, XCircle } from 'lucide-react';
-import { ApiError, adminPassword, api } from '../api';
+import { ApiError, adminToken, api } from '../api';
 import type { AppConfig, ServiceName, Settings, TestResult } from '../types';
 
 interface Props {
   firstRun: boolean;
   locked: boolean;
   onSaved: (config: AppConfig) => void;
+  onSignedIn: () => void;
   onCancel: () => void;
   notify: (message: string, tone?: 'ok' | 'error') => void;
 }
 
 type ServiceDraft = { url: string; secret: string; secretSet: boolean; userId: string };
-type Draft = { general: Settings['general'] } & Record<ServiceName, ServiceDraft>;
+type Draft = { general: Settings['general'] & { adminPassword: string; clearAdminPassword: boolean } } & Record<ServiceName, ServiceDraft>;
 
 const SERVICE_META: Record<
   ServiceName,
@@ -56,7 +57,7 @@ const STEPS: { id: string; title: string; caption: string; services: ServiceName
 ];
 
 const fromSettings = (s: Settings): Draft => ({
-  general: { ...s.general },
+  general: { ...s.general, adminPassword: '', clearAdminPassword: false },
   plex: { url: s.plex.url, secret: '', secretSet: Boolean(s.plex.tokenSet), userId: '' },
   jellyfin: { url: s.jellyfin.url, secret: '', secretSet: Boolean(s.jellyfin.apiKeySet), userId: s.jellyfin.userId ?? '' },
   radarr: { url: s.radarr.url, secret: '', secretSet: Boolean(s.radarr.apiKeySet), userId: '' },
@@ -67,7 +68,7 @@ const fromSettings = (s: Settings): Draft => ({
 const secretField = (s: ServiceName) => (s === 'plex' ? 'token' : 'apiKey');
 const isFilled = (d: ServiceDraft) => Boolean(d.url.trim() && (d.secret.trim() || d.secretSet));
 
-export default function SetupWizard({ firstRun, locked, onSaved, onCancel, notify }: Props) {
+export default function SetupWizard({ firstRun, locked, onSaved, onSignedIn, onCancel, notify }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [needsPassword, setNeedsPassword] = useState(false);
@@ -93,10 +94,18 @@ export default function SetupWizard({ firstRun, locked, onSaved, onCancel, notif
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [unlockError, setUnlockError] = useState<string | null>(null);
   const unlock = async (e: React.FormEvent) => {
     e.preventDefault();
-    adminPassword.set(password);
-    await load();
+    setUnlockError(null);
+    try {
+      const { token } = await api.login(password);
+      adminToken.set(token);
+      onSignedIn();
+      await load();
+    } catch (err) {
+      setUnlockError(err instanceof Error ? err.message : 'Sign in failed');
+    }
   };
 
   const update = (service: ServiceName, patch: Partial<ServiceDraft>) => {
@@ -122,7 +131,12 @@ export default function SetupWizard({ firstRun, locked, onSaved, onCancel, notif
     if (!draft) return;
     setSaving(true);
     try {
-      const patch: Record<string, unknown> = { general: draft.general };
+      const { adminPassword: newPassword, clearAdminPassword, adminPasswordSet, adminPasswordFromEnv, ...general } = draft.general;
+      void adminPasswordSet;
+      void adminPasswordFromEnv;
+      const patch: Record<string, unknown> = {
+        general: { ...general, ...(newPassword.trim() ? { adminPassword: newPassword.trim() } : {}), ...(clearAdminPassword ? { clearAdminPassword: true } : {}) },
+      };
       for (const s of Object.keys(SERVICE_META) as ServiceName[]) {
         const d = draft[s];
         const entry: Record<string, unknown> = { url: d.url.trim() };
@@ -131,7 +145,8 @@ export default function SetupWizard({ firstRun, locked, onSaved, onCancel, notif
         if (s === 'jellyfin' || s === 'seerr') entry.userId = d.userId;
         patch[s] = entry;
       }
-      const { config } = await api.saveSettings(patch);
+      const { config, token } = await api.saveSettings(patch);
+      adminToken.set(token);
       notify('Settings saved');
       onSaved(config);
     } catch (err) {
@@ -159,8 +174,9 @@ export default function SetupWizard({ firstRun, locked, onSaved, onCancel, notif
             <Lock className="h-5 w-5" />
           </div>
           <h3 className="text-lg font-bold">Settings are locked</h3>
-          <p className="mt-1 text-sm text-fog-500">Enter the admin password set with ADMIN_PASSWORD to change connections.</p>
+          <p className="mt-1 text-sm text-fog-500">Enter the admin password to change connections.</p>
           <input type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Admin password" className={inputCls + ' mt-4'} />
+          {unlockError && <p className="mt-2 text-xs text-rose-300">{unlockError}</p>}
           <button type="submit" className="btn-primary mt-3 w-full" disabled={!password}>
             Unlock
           </button>
@@ -240,6 +256,42 @@ export default function SetupWizard({ firstRun, locked, onSaved, onCancel, notif
                   <span className="block text-xs text-fog-500">Fills the dashboard with sample streams, titles and requests. Turn off once your services are connected.</span>
                 </span>
               </label>
+
+              <div className="rounded-xl border border-line bg-night-700/60 p-4">
+                <p className="text-sm font-medium">Admin access</p>
+                <p className="mt-0.5 text-xs text-fog-500">
+                  With a password set, only signed-in admins can open Settings. Everyone else still gets the dashboard.
+                  {draft.general.adminPasswordFromEnv && ' A password is also set by the ADMIN_PASSWORD variable and keeps working.'}
+                </p>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  <Field label={draft.general.adminPasswordSet ? 'Change admin password' : 'Admin password'} hint={draft.general.adminPasswordSet ? 'Leave blank to keep the current one.' : 'Optional. At least 4 characters.'}>
+                    <input
+                      type="password"
+                      className={inputCls}
+                      value={draft.general.adminPassword}
+                      autoComplete="new-password"
+                      onChange={(e) => setDraft({ ...draft, general: { ...draft.general, adminPassword: e.target.value, clearAdminPassword: false } })}
+                      placeholder={draft.general.adminPasswordSet ? 'Saved — leave blank to keep' : 'Choose a password'}
+                    />
+                  </Field>
+                  {draft.general.adminPasswordSet && !draft.general.adminPasswordFromEnv && (
+                    <label className="flex cursor-pointer items-start gap-3 pt-6 text-sm">
+                      <input type="checkbox" className="mt-0.5 accent-accent-500" checked={draft.general.clearAdminPassword} onChange={(e) => setDraft({ ...draft, general: { ...draft.general, clearAdminPassword: e.target.checked, adminPassword: '' } })} />
+                      <span>
+                        <span className="block font-medium">Remove the password</span>
+                        <span className="block text-xs text-fog-500">Everyone becomes an admin again.</span>
+                      </span>
+                    </label>
+                  )}
+                </div>
+                <label className="mt-4 flex cursor-pointer items-start gap-3">
+                  <input type="checkbox" className="mt-0.5 accent-accent-500" checked={draft.general.hideViewers} onChange={(e) => setDraft({ ...draft, general: { ...draft.general, hideViewers: e.target.checked } })} />
+                  <span>
+                    <span className="block text-sm font-medium">Hide who is watching from non-admins</span>
+                    <span className="block text-xs text-fog-500">Viewers still see what is playing and its progress, but not the user or device name. Needs a password to have any effect.</span>
+                  </span>
+                </label>
+              </div>
             </div>
           )}
 

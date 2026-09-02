@@ -9,6 +9,11 @@ export interface AppConfig {
   timeZone: string;
   refreshSeconds: number;
   services: Record<ServiceName, boolean>;
+  /** An admin password exists. */
+  protected: boolean;
+  /** This browser is signed in as admin (always true when no password is set). */
+  admin: boolean;
+  hideViewers: boolean;
 }
 
 export interface Stream {
@@ -17,7 +22,8 @@ export interface Stream {
   type: 'movie' | 'episode';
   title: string;
   subtitle: string;
-  user: string;
+  /** null when the server hides viewer identities from non-admins */
+  user: string | null;
   player: string;
   device: string;
   state: 'playing' | 'paused' | 'buffering' | string;
@@ -103,7 +109,15 @@ export interface ServiceSettings {
 }
 
 export interface Settings {
-  general: { title: string; serverName: string; userName: string; demo: boolean };
+  general: {
+    title: string;
+    serverName: string;
+    userName: string;
+    demo: boolean;
+    adminPasswordSet: boolean;
+    adminPasswordFromEnv: boolean;
+    hideViewers: boolean;
+  };
   plex: ServiceSettings;
   jellyfin: ServiceSettings;
   radarr: ServiceSettings;

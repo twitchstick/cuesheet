@@ -10,7 +10,9 @@ A calm, single-page media dashboard for a home server. It shows:
 
 Every service is optional: configure what you have and the rest of the page simply doesn't render. All API keys stay inside the container; the browser only ever talks to Cuesheet, and posters are proxied through it.
 
-**Setup wizard.** On first run the app opens a setup wizard: enter each service's URL and key, hit *Test connection* to confirm it (Jellyfin and Seerr also let you pick a user from a list), and save. Settings are written to `settings.json` in the data directory (`/config` in the container) and override any environment variables. Reopen it any time from *Settings* in the sidebar. Set `ADMIN_PASSWORD` to require a password before Settings can be viewed or changed — recommended if anyone outside your household can reach the page, since the wizard has no login of its own.
+**Setup wizard.** On first run the app opens a setup wizard: enter each service's URL and key, hit *Test connection* to confirm it (Jellyfin and Seerr also let you pick a user from a list), and save. Settings are written to `settings.json` in the data directory (`/config` in the container) and override any environment variables. Reopen it any time from *Settings* in the sidebar.
+
+**Admin and viewers.** Set an admin password on the first wizard step (or via `ADMIN_PASSWORD`). Then only signed-in admins can open Settings, and, with *Hide who is watching from non-admins* on (the default), everyone else sees what is playing and its progress but not the user or device behind it. The redaction happens on the server, so the names aren't in the API either. Sign in from the *Admin sign in* button at the bottom of the sidebar; the session is remembered per browser. Without a password everyone is an admin, which is fine for a single household.
 
 Turn on *Show demo data* (or set `DEMO_MODE=true`) to see the whole dashboard populated with sample data before connecting anything. *Your name* personalises the greeting and *Server name* is the small label above it.
 

@@ -1,4 +1,4 @@
-import { CalendarDays, Home, Play, Plus, Settings, Sparkles } from 'lucide-react';
+import { CalendarDays, Home, KeyRound, LogOut, Play, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
 import { sourceLabel } from '../lib/format';
 import Logo from './Logo';
 import type { View } from '../types';
@@ -19,15 +19,23 @@ export interface ServiceHealth {
   ok: boolean | undefined;
 }
 
+export interface AdminState {
+  protected: boolean;
+  admin: boolean;
+  onSignIn: () => void;
+  onSignOut: () => void;
+}
+
 interface Props {
   title: string;
   view: View;
   available: Set<View>;
   onNavigate: (view: View) => void;
   services: ServiceHealth[];
+  auth: AdminState;
 }
 
-export default function Sidebar({ title, view, available, onNavigate, services }: Props) {
+export default function Sidebar({ title, view, available, onNavigate, services, auth }: Props) {
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-night-900 px-4 py-6 lg:flex">
       <div className="px-2">
@@ -41,10 +49,29 @@ export default function Sidebar({ title, view, available, onNavigate, services }
           </button>
         ))}
       </nav>
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col gap-3">
+        <AdminBadge auth={auth} />
         <ServicesCard services={services} />
       </div>
     </aside>
+  );
+}
+
+export function AdminBadge({ auth }: { auth: AdminState }) {
+  if (!auth.protected) return null;
+  return auth.admin ? (
+    <div className="flex items-center justify-between rounded-xl border border-accent-500/30 bg-accent-500/10 px-3 py-2 text-xs">
+      <span className="inline-flex items-center gap-1.5 font-semibold text-accent-300">
+        <ShieldCheck className="h-3.5 w-3.5" /> Admin
+      </span>
+      <button type="button" onClick={auth.onSignOut} className="inline-flex items-center gap-1 text-fog-500 hover:text-fog-100" title="Sign out">
+        <LogOut className="h-3.5 w-3.5" /> Sign out
+      </button>
+    </div>
+  ) : (
+    <button type="button" onClick={auth.onSignIn} className="nav-item justify-center text-xs">
+      <KeyRound className="h-3.5 w-3.5 text-fog-500" /> Admin sign in
+    </button>
   );
 }
 

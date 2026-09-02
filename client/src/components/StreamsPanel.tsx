@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight } from 'lucide-react';
+import { AlertTriangle, ArrowRight, User } from 'lucide-react';
 import { playbackLabel } from '../lib/format';
 import type { Stream } from '../types';
 
@@ -50,14 +50,16 @@ export default function StreamsPanel({ streams, featuredId, sources, onViewAll }
         {list.length === 0 && <li className="py-3 text-sm text-fog-500">{streams.length ? 'Everything else is running smoothly.' : 'No active sessions.'}</li>}
         {list.map((s) => (
           <li key={s.id} className="flex items-center gap-3 py-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-500/25 text-xs font-bold text-accent-300">{s.user.charAt(0).toUpperCase()}</span>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-500/25 text-xs font-bold text-accent-300" title={s.user ?? undefined}>
+              {s.user ? s.user.charAt(0).toUpperCase() : <User className="h-3.5 w-3.5" />}
+            </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">
                 {s.title}
                 {s.type === 'episode' && <span className="ml-1 font-medium text-fog-300">{s.subtitle.split(' · ')[0]}</span>}
               </p>
               <p className="truncate text-xs text-fog-500">
-                {s.location === 'remote' ? 'Remote' : s.location === 'local' ? 'Local' : s.user} · {playbackLabel(s)}
+                {s.location === 'remote' ? 'Remote' : s.location === 'local' ? 'Local' : (s.user ?? s.player)} · {playbackLabel(s)}
               </p>
             </div>
             {s.attention ? (

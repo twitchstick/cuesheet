@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { hashPassword, newSecret } from './auth.js';
 
 const env = (key, fallback = '') => (process.env[key] ?? fallback).trim();
 const num = (key, fallback) => {
@@ -25,7 +26,10 @@ function envDefaults() {
       serverName: env('SERVER_NAME', 'Apollo Media'),
       userName: env('USER_NAME'),
       demo: bool(env('DEMO_MODE')),
+      adminPasswordHash: '',
+      hideViewers: true,
     },
+    auth: { secret: '' },
     plex: { url: env('PLEX_URL'), token: env('PLEX_TOKEN') },
     jellyfin: { url: env('JELLYFIN_URL'), apiKey: env('JELLYFIN_API_KEY'), userId: env('JELLYFIN_USER_ID') },
     radarr: { url: env('RADARR_URL'), apiKey: env('RADARR_API_KEY') },
@@ -59,6 +63,9 @@ export const config = {
   serverName: '',
   userName: '',
   demo: false,
+  adminPasswordHash: '',
+  hideViewers: true,
+  authSecret: '',
   plex: {},
   jellyfin: {},
   radarr: {},
@@ -69,7 +76,7 @@ export const config = {
 /** Saved settings win over environment variables, field by field. */
 function merged() {
   const base = envDefaults();
-  const out = { general: { ...base.general, ...(saved.general ?? {}) } };
+  const out = { general: { ...base.general, ...(saved.general ?? {}) }, auth: { ...base.auth, ...(saved.auth ?? {}) } };
   for (const s of SERVICES) out[s] = { ...base[s], ...(saved[s] ?? {}) };
   return out;
 }
@@ -80,6 +87,9 @@ function rebuild() {
   config.serverName = String(m.general.serverName ?? '');
   config.userName = String(m.general.userName ?? '');
   config.demo = Boolean(m.general.demo);
+  config.adminPasswordHash = String(m.general.adminPasswordHash ?? '');
+  config.hideViewers = m.general.hideViewers !== false;
+  config.authSecret = String(m.auth.secret ?? '');
   for (const s of SERVICES) {
     const fields = { url: stripSlash(m[s].url), [SECRET_FIELD[s]]: String(m[s][SECRET_FIELD[s]] ?? '').trim() };
     for (const f of EXTRA_FIELDS[s] ?? []) fields[f] = String(m[s][f] ?? '').trim();
@@ -95,6 +105,20 @@ export const enabledServices = () =>
 
 export const anyServiceConfigured = () => SERVICES.some((s) => config[s].enabled);
 
+/** True when an admin password exists (set in the wizard or via ADMIN_PASSWORD). */
+export const isProtected = () => Boolean(config.adminPasswordHash || config.adminPassword);
+
+/** Make sure a signing secret exists; persisted so admin sessions survive restarts. */
+export function ensureAuthSecret() {
+  if (config.authSecret) return config.authSecret;
+  const next = structuredClone(saved);
+  next.auth = { ...(next.auth ?? {}), secret: newSecret() };
+  writeSettingsFile(next);
+  saved = next;
+  rebuild();
+  return config.authSecret;
+}
+
 export const publicConfig = () => ({
   title: config.title,
   serverName: config.serverName,
@@ -103,12 +127,22 @@ export const publicConfig = () => ({
   timeZone: config.timeZone,
   refreshSeconds: config.refreshSeconds,
   services: enabledServices(),
+  protected: isProtected(),
+  hideViewers: config.hideViewers,
 });
 
 /** Settings as shown to the browser: secrets are never returned, only whether one is stored. */
 export function getSettings() {
   const out = {
-    general: { title: config.title, serverName: config.serverName, userName: config.userName, demo: config.demo },
+    general: {
+      title: config.title,
+      serverName: config.serverName,
+      userName: config.userName,
+      demo: config.demo,
+      adminPasswordSet: isProtected(),
+      adminPasswordFromEnv: Boolean(config.adminPassword),
+      hideViewers: config.hideViewers,
+    },
   };
   for (const s of SERVICES) {
     const secret = SECRET_FIELD[s];
@@ -156,6 +190,16 @@ export function saveSettings(patch) {
     if (str(g.serverName) !== undefined) next.general.serverName = str(g.serverName, 60);
     if (str(g.userName) !== undefined) next.general.userName = str(g.userName, 60);
     if (typeof g.demo === 'boolean') next.general.demo = g.demo;
+    if (typeof g.hideViewers === 'boolean') next.general.hideViewers = g.hideViewers;
+    if (typeof g.adminPassword === 'string' && g.adminPassword.trim()) {
+      if (g.adminPassword.trim().length < 4) throw new SettingsError('Admin password must be at least 4 characters');
+      next.general.adminPasswordHash = hashPassword(g.adminPassword.trim());
+      next.auth = { ...(next.auth ?? {}), secret: newSecret() }; // sign everyone out
+    }
+    if (g.clearAdminPassword === true) {
+      next.general.adminPasswordHash = '';
+      next.auth = { ...(next.auth ?? {}), secret: newSecret() };
+    }
   }
 
   for (const s of SERVICES) {

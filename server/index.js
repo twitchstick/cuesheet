@@ -1,8 +1,8 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import crypto from 'node:crypto';
-import { config, enabledServices, anyServiceConfigured, publicConfig, getSettings, saveSettings, effectiveSecret, SECRET_FIELD, SERVICES } from './config.js';
+import { config, enabledServices, anyServiceConfigured, publicConfig, getSettings, saveSettings, effectiveSecret, isProtected, ensureAuthSecret, SECRET_FIELD, SERVICES } from './config.js';
+import { verifyHash, safeEqual, issueToken, verifyToken, loginAllowed, recordFailure, clearFailures } from './auth.js';
 import { probes } from './services/probe.js';
 import { cached, invalidate } from './cache.js';
 import { fetchRaw, UpstreamError } from './http.js';
@@ -41,24 +41,40 @@ async function gather(tasks) {
   return { items, errors };
 }
 
-api.get('/config', (_req, res) => {
-  res.json(publicConfig());
+// ---- Admin sign-in ----
+// With no password configured everyone is an admin (single household, nothing to hide).
+const bearer = (req) => {
+  const header = String(req.get('authorization') ?? '');
+  return header.startsWith('Bearer ') ? header.slice(7) : '';
+};
+const isAdmin = (req) => !isProtected() || verifyToken(config.authSecret, bearer(req));
+const requireAdmin = (req, res, next) => (isAdmin(req) ? next() : res.status(401).json({ error: 'Admin sign-in required' }));
+
+const checkPassword = (password) =>
+  (config.adminPasswordHash && verifyHash(password, config.adminPasswordHash)) || (config.adminPassword && safeEqual(password, config.adminPassword));
+
+api.get('/config', (req, res) => {
+  res.json({ ...publicConfig(), admin: isAdmin(req) });
+});
+
+api.get('/auth/status', (req, res) => res.json({ protected: isProtected(), admin: isAdmin(req) }));
+
+api.post('/auth/login', (req, res) => {
+  const ip = req.ip ?? 'unknown';
+  if (!loginAllowed(ip)) return res.status(429).json({ error: 'Too many attempts — wait 30 seconds' });
+  const password = String(req.body?.password ?? '');
+  if (!isProtected()) return res.json({ token: null, admin: true });
+  if (!password || !checkPassword(password)) {
+    recordFailure(ip);
+    return res.status(401).json({ error: 'Wrong password' });
+  }
+  clearFailures(ip);
+  res.json({ token: issueToken(ensureAuthSecret()), admin: true });
 });
 
 // ---- Setup wizard / settings ----
-const settingsLocked = () => Boolean(config.adminPassword);
-const requireAdmin = (req, res, next) => {
-  if (!settingsLocked()) return next();
-  const header = String(req.get('authorization') ?? '');
-  const given = header.startsWith('Bearer ') ? header.slice(7) : '';
-  const a = Buffer.from(given);
-  const b = Buffer.from(config.adminPassword);
-  if (a.length === b.length && crypto.timingSafeEqual(a, b)) return next();
-  res.status(401).json({ error: 'Admin password required' });
-};
-
-api.get('/setup/status', (_req, res) => {
-  res.json({ needsSetup: !anyServiceConfigured() && !config.demo, locked: settingsLocked(), settingsFile: config.settingsFile });
+api.get('/setup/status', (req, res) => {
+  res.json({ needsSetup: !anyServiceConfigured() && !config.demo, locked: isProtected() && !isAdmin(req), settingsFile: config.settingsFile });
 });
 
 api.get('/settings', requireAdmin, (_req, res) => res.json(getSettings()));
@@ -67,7 +83,9 @@ api.put('/settings', requireAdmin, (req, res, next) => {
   try {
     const settings = saveSettings(req.body);
     invalidate('');
-    res.json({ settings, config: publicConfig() });
+    // Setting or changing the password rotates the secret; hand the caller a fresh token so they stay signed in.
+    const token = isProtected() ? issueToken(ensureAuthSecret()) : null;
+    res.json({ settings, config: { ...publicConfig(), admin: true }, token });
   } catch (err) {
     next(err);
   }
@@ -93,14 +111,21 @@ api.post('/settings/test', requireAdmin, async (req, res) => {
 });
 
 
-api.get('/streams', async (_req, res, next) => {
+/** Viewers see what is playing, not who: drop the user and device names. */
+const redactStreams = (result) => ({
+  ...result,
+  items: result.items.map((s) => ({ ...s, user: null, device: '' })),
+  redacted: true,
+});
+
+api.get('/streams', async (req, res, next) => {
   try {
     const tasks = [];
     if (config.demo) tasks.push(['demo', async () => demo.streams()]);
     if (config.plex.enabled) tasks.push(['plex', () => plex.sessions(config.plex)]);
     if (config.jellyfin.enabled) tasks.push(['jellyfin', () => jellyfin.sessions(config.jellyfin)]);
     const result = await cached('streams', 5_000, () => gather(tasks));
-    res.json(result);
+    res.json(config.hideViewers && !isAdmin(req) ? redactStreams(result) : result);
   } catch (err) {
     next(err);
   }
