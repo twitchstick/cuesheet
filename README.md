@@ -1,7 +1,22 @@
-<p align="center"><img src="docs/logo.svg" width="88" alt="Cuesheet"></p>
+<p align="center">
+  <img src="docs/logo.svg" width="88" alt="Cuesheet">
+</p>
+
 <h1 align="center">Cuesheet</h1>
 
-A calm, single-page media dashboard for a home server.
+<p align="center">A calm media dashboard for Plex, Jellyfin, Radarr, Sonarr and Seerr.</p>
+
+<p align="center">
+  <a href="https://github.com/twitchstick/cuesheet/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/twitchstick/cuesheet?label=release&color=7c5cff"></a>
+  <a href="https://github.com/twitchstick/cuesheet/actions/workflows/docker.yml"><img alt="Build status" src="https://github.com/twitchstick/cuesheet/actions/workflows/docker.yml/badge.svg"></a>
+  <a href="https://github.com/twitchstick/cuesheet/pkgs/container/cuesheet"><img alt="Container image" src="https://img.shields.io/badge/ghcr.io-cuesheet-22d3ee"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/twitchstick/cuesheet?color=8b91a5"></a>
+</p>
+
+Everything worth knowing about a home media server on one page: what is playing
+right now, what arrived recently, what is due this week, and a box to ask for
+something new. It runs in Docker, sets itself up from a wizard in the browser,
+and keeps every API key on the server.
 
 - **Now Playing** – active Plex and/or Jellyfin streams with poster, user, player, progress, direct/transcode and resolution.
 - **Recently Added** – a poster row merged from Plex and Jellyfin, newest first.
@@ -69,6 +84,23 @@ cp .env.example .env   # fill in your values
 docker compose up -d --build
 ```
 
+## Updating
+
+Releases are listed on the [releases page](https://github.com/twitchstick/cuesheet/releases)
+with notes taken from the [changelog](CHANGELOG.md). Every push to `main` also
+republishes `latest`, so you can follow either the moving tag or a pinned one:
+
+| Tag | What you get |
+| --- | --- |
+| `latest` | The newest build from `main`. |
+| `1.0.0` | An exact release, pinned. |
+| `1.0` | The newest patch of that minor version. |
+
+On Unraid, use **Check for Updates** on the Cuesheet container and then **Apply
+Update**. From a terminal it is `docker pull ghcr.io/twitchstick/cuesheet:latest`
+followed by a restart. Your `settings.json` in the config folder is untouched by
+an update.
+
 ## Credentials
 
 | Service | Where to find it |
@@ -123,3 +155,10 @@ npm run dev           # server on :3000, Vite client on :5173 (proxied to /api)
 - `/api/settings` – read (secrets masked), update and test connections from the setup wizard; `server/config.js` merges env defaults with `settings.json`.
 - `/api/auth/*` – sign-in. `server/services/plexAuth.js` runs the plex.tv PIN flow and checks the account reaches this server; `server/services/jellyfinAuth.js` forwards credentials to Jellyfin. A sign-in returns an HMAC-signed token that carries identity only, never permissions — rank is resolved from settings on every request, so promoting or demoting someone applies at once. The admin password is stored as a scrypt hash.
 - `client/` – React + Vite + Tailwind. Polling pauses when the tab is hidden and resumes immediately when it becomes visible, which suits a wall-mounted display.
+
+## Project
+
+- [Changelog](CHANGELOG.md) — what changed in each release.
+- [Security policy](SECURITY.md) — how to report a problem, and what Cuesheet
+  does and does not protect against.
+- [MIT licensed](LICENSE).

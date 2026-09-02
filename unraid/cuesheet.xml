@@ -8,11 +8,22 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/twitchstick/cuesheet</Support>
   <Project>https://github.com/twitchstick/cuesheet</Project>
-  <Overview>Cuesheet is a calm media dashboard: what's playing on Plex/Jellyfin right now, what was recently added, what Radarr and Sonarr expect this week, and a Seerr-backed request box. Open the web UI after starting and the setup wizard walks you through connecting each service (the variables below are optional). All API keys stay inside the container; the browser only ever talks to Cuesheet.</Overview>
+  <Overview>Cuesheet is a calm media dashboard for your server: what's playing on Plex and Jellyfin right now, what was recently added, what Radarr and Sonarr expect this week, and a box to request new media through Overseerr or Jellyseerr.&#13;&#13;Open the web UI after starting and a setup wizard walks you through connecting each service and testing it, so the variables below are optional. Everyone in the house can sign in with their existing Plex or Jellyfin account; you decide who is an admin, and everyone else can be kept from seeing who is watching.&#13;&#13;All API keys stay inside the container, stored in the config folder. The browser only ever talks to Cuesheet.</Overview>
   <Category>MediaServer:Video Tools:</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/twitchstick/cuesheet/main/unraid/cuesheet.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/twitchstick/cuesheet/main/docs/icon.png</Icon>
+  <Screenshot>https://raw.githubusercontent.com/twitchstick/cuesheet/main/docs/screenshot.png</Screenshot>
+  <Changes>
+### 1.0.0
+
+First release.
+
+- Now Playing, Recently Added, a weekly release calendar and Seerr requests on one page.
+- Setup wizard with live connection tests, so no variables need filling in here.
+- Sign in with Plex or Jellyfin, an admin list you control, and viewer privacy for who is watching.
+- Demo mode for a look before anything is connected.
+</Changes>
   <ExtraParams>--restart unless-stopped</ExtraParams>
   <DonateText/>
   <DonateLink/>

@@ -1,0 +1,36 @@
+name: Bug report
+description: Something in Cuesheet does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you do, and what did Cuesheet do instead?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Cuesheet version
+      description: The image tag you are running, e.g. 1.0.0 or latest
+    validations:
+      required: true
+  - type: dropdown
+    id: services
+    attributes:
+      label: Which services are connected
+      multiple: true
+      options: [Plex, Jellyfin, Radarr, Sonarr, Overseerr, Jellyseerr, None yet]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Container log
+      description: Output of `docker logs cuesheet`. Remove any API keys before pasting.
+      render: shell
