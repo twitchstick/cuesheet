@@ -12,7 +12,7 @@
   <Category>MediaServer:Video Tools:</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/twitchstick/cuesheet/main/unraid/cuesheet.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/twitchstick/cuesheet/main/client/public/favicon.svg</Icon>
+  <Icon>https://raw.githubusercontent.com/twitchstick/cuesheet/main/docs/icon.png</Icon>
   <ExtraParams>--restart unless-stopped</ExtraParams>
   <DonateText/>
   <DonateLink/>

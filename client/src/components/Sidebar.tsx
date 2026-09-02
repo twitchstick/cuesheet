@@ -1,6 +1,9 @@
 import { CalendarDays, Home, Play, Plus, Settings, Sparkles } from 'lucide-react';
 import { sourceLabel } from '../lib/format';
+import Logo from './Logo';
 import type { View } from '../types';
+
+export { Logo };
 
 export const NAV: { view: View; label: string; icon: typeof Home }[] = [
   { view: 'overview', label: 'Overview', icon: Home },
@@ -22,15 +25,6 @@ interface Props {
   available: Set<View>;
   onNavigate: (view: View) => void;
   services: ServiceHealth[];
-}
-
-export function Logo({ title }: { title: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-500 text-base font-black text-white shadow-accent">{title.charAt(0).toUpperCase()}</div>
-      <span className="text-xl font-bold tracking-tight">{title}</span>
-    </div>
-  );
 }
 
 export default function Sidebar({ title, view, available, onNavigate, services }: Props) {

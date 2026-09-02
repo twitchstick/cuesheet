@@ -1,4 +1,5 @@
-# Cuesheet
+<p align="center"><img src="docs/logo.svg" width="88" alt="Cuesheet"></p>
+<h1 align="center">Cuesheet</h1>
 
 A calm, single-page media dashboard for a home server. It shows:
 
