@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import Section from './Section';
 import { addDays, formatTime24to12, parseIsoDate } from '../lib/format';
 import type { CalendarItem, Errors } from '../types';
@@ -64,7 +64,7 @@ export default function WeekCalendar({ start, today, items, errors, loading, onS
                   {isToday && <span className="ml-1 uppercase tracking-wider">· Today</span>}
                 </span>
               </div>
-              <ul className="flex flex-col gap-2">
+              <DayList count={list.length}>
                 {loading && !items && [0].map((i) => <li key={i} className="h-12 animate-pulse rounded-lg bg-night-700" />)}
                 {list.map((item) => {
                   const radarr = item.source === 'radarr';
@@ -85,12 +85,57 @@ export default function WeekCalendar({ start, today, items, errors, loading, onS
                     </li>
                   );
                 })}
-              </ul>
+              </DayList>
             </div>
           );
         })}
       </div>
       {!loading && items && items.length === 0 && <p className="mt-3 text-center text-xs text-fog-700">{isCurrentWeek ? 'Nothing scheduled this week.' : 'Nothing scheduled that week.'}</p>}
     </Section>
+  );
+}
+
+/**
+ * A day's releases. Busy days would otherwise stretch the whole row, so past
+ * six entries the list becomes a scroller with a button to walk through it.
+ */
+const MAX_VISIBLE = 6;
+
+function DayList({ count, children }: { count: number; children: React.ReactNode }) {
+  const ref = useRef<HTMLUListElement>(null);
+  const [atEnd, setAtEnd] = useState(false);
+  const crowded = count > MAX_VISIBLE;
+
+  const onScroll = () => {
+    const el = ref.current;
+    if (!el) return;
+    setAtEnd(el.scrollTop >= el.scrollHeight - el.clientHeight - 8);
+  };
+
+  const nudge = () => {
+    const el = ref.current;
+    if (!el) return;
+    const top = atEnd ? 0 : el.scrollTop + el.clientHeight * 0.8;
+    el.scrollTo({ top, behavior: 'smooth' });
+  };
+
+  if (!crowded) return <ul className="flex flex-col gap-2">{children}</ul>;
+
+  return (
+    <div className="relative">
+      <ul ref={ref} onScroll={onScroll} className="scroll-col flex max-h-[19rem] flex-col gap-2 overflow-y-auto pr-1">
+        {children}
+      </ul>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-night-800 to-transparent" />
+      <button
+        type="button"
+        onClick={nudge}
+        title={`${count} releases this day`}
+        className="absolute inset-x-0 bottom-0 mx-auto flex h-6 w-full items-center justify-center gap-1 rounded-b-lg text-[10px] font-bold uppercase tracking-wider text-fog-300 hover:text-fog-100"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${atEnd ? 'rotate-180' : ''}`} />
+        {atEnd ? 'Back to top' : `${count} releases`}
+      </button>
+    </div>
   );
 }

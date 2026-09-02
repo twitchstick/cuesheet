@@ -26,6 +26,9 @@ export default {
         },
         glow: '#22d3ee',
         live: '#ff3b6f',
+        // The two media servers' own colours, used to tint their streams.
+        plex: '#e5a00d',
+        jellyfin: '#aa5cc3',
       },
       fontFamily: {
         sans: ['Inter', 'Segoe UI', 'ui-sans-serif', 'system-ui', '-apple-system', 'Roboto', 'sans-serif'],

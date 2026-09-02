@@ -5,6 +5,37 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.0.0] — 2026-09-02
+
+### Removed
+
+- **Sign-in, in full.** No Plex or Jellyfin accounts, no admin password, no
+  admin list, and no hiding of who is watching. The dashboard is open to
+  anyone who can reach it, and every stream shows its viewer again. The
+  `ADMIN_PASSWORD` and `TRUST_PROXY` variables are gone with it.
+- **Requesting from inside Cuesheet.** Search, trending and the season picker
+  are gone. *Request media* opens Seerr in a new tab instead.
+
+### Added
+
+- **Bandwidth.** A total for the server, split between remote and local, plus a
+  figure on every stream.
+- **Server colours.** Plex streams carry Plex's gold, Jellyfin's carry its
+  purple, on the hero, the stream cards and the active list.
+- **Busy calendar days scroll** rather than stretching the whole week, with a
+  button that walks through the day's releases.
+
+### Changed
+
+- The requests page is now a read-only view of what the house has asked for,
+  with a link across to Seerr.
+
+### Fixed
+
+- Component styles sat outside Tailwind's layers, so utilities meant to
+  override them were losing. The calendar's "today" border had been silently
+  falling back to the default.
+
 ## [1.1.0] — 2026-09-02
 
 ### Changed
@@ -75,5 +106,6 @@ First release.
 - Responses carry a content security policy, `nosniff`, `X-Frame-Options` and
   `Referrer-Policy`.
 
+[2.0.0]: https://github.com/twitchstick/cuesheet/releases/tag/v2.0.0
 [1.1.0]: https://github.com/twitchstick/cuesheet/releases/tag/v1.1.0
 [1.0.0]: https://github.com/twitchstick/cuesheet/releases/tag/v1.0.0

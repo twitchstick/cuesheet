@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pause } from 'lucide-react';
-import { elapsed, remaining, sourceLabel } from '../lib/format';
+import { bandwidth, elapsed, remaining, serviceTheme, sourceLabel } from '../lib/format';
 import type { Stream } from '../types';
 
 interface Props {
@@ -26,10 +26,12 @@ export default function HeroStream({ stream, loading }: Props) {
   const pct = Math.round(stream.progress * 100);
   const paused = stream.state === 'paused';
   const quality = [stream.quality, stream.transcoding ? 'Transcode' : 'Direct play'].filter(Boolean).join(' ');
+  const theme = serviceTheme[stream.source];
+  const rate = bandwidth(stream.bandwidthKbps);
   const art = stream.backdrop && !artFailed ? stream.backdrop : null;
 
   return (
-    <article className="card relative flex min-h-[320px] flex-col justify-end overflow-hidden xl:min-h-[420px]">
+    <article className={`card relative flex min-h-[320px] flex-col justify-end overflow-hidden border-l-2 xl:min-h-[420px] ${theme?.border ?? 'border-l-transparent'}`}>
       <div className="absolute inset-0">
         {art ? (
           <img src={art} alt="" onError={() => setArtFailed(true)} className="h-full w-full object-cover opacity-90" />
@@ -41,16 +43,17 @@ export default function HeroStream({ stream, loading }: Props) {
       </div>
 
       <div className="relative p-6 sm:p-7">
-        <span className="inline-flex items-center gap-2 rounded-full bg-live px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white shadow-lg">
-          <span className={`h-1.5 w-1.5 rounded-full bg-white ${paused ? '' : 'animate-pulse'}`} />
+        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] shadow-lg ${theme?.bg ?? 'bg-live'} ${stream.source === 'plex' ? 'text-night-950' : 'text-white'}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${stream.source === 'plex' ? 'bg-night-950' : 'bg-white'} ${paused ? '' : 'animate-pulse'}`} />
           {paused ? 'Paused on' : 'Live on'} {sourceLabel[stream.source]}
         </span>
         <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-5xl">{stream.title}</h2>
         {stream.type === 'episode' && <p className="mt-1.5 text-base text-fog-300">{stream.subtitle}</p>}
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-fog-300">
-          {(stream.you || stream.user) && <span className="font-medium text-fog-100">{stream.you && !stream.user ? 'You' : stream.user}</span>}
+          {stream.user && <span className="font-medium text-fog-100">{stream.user}</span>}
           <span>{stream.device || stream.player}</span>
           <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-fog-100">{quality}</span>
+          {rate && <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-fog-100">{rate}</span>}
           {paused && <Pause className="h-4 w-4 text-fog-300" fill="currentColor" />}
         </div>
         <div className="mt-5 max-w-2xl">

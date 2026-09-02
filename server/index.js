@@ -1,31 +1,7 @@
-import crypto from 'node:crypto';
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  config,
-  enabledServices,
-  anyServiceConfigured,
-  publicConfig,
-  getSettings,
-  saveSettings,
-  effectiveSecret,
-  isProtected,
-  signInProviders,
-  ensureAuthSecret,
-  ensurePlexClientId,
-  resolveAdmin,
-  recordPerson,
-  listPeople,
-  saveAccess,
-  signEveryoneOut,
-  LOCAL_ADMIN_KEY,
-  SECRET_FIELD,
-  SERVICES,
-} from './config.js';
-import { verifyHash, safeEqual, issueToken, readToken, loginAllowed, recordFailure, clearFailures } from './auth.js';
-import * as plexAuth from './services/plexAuth.js';
-import * as jellyfinAuth from './services/jellyfinAuth.js';
+import { config, enabledServices, anyServiceConfigured, publicConfig, getSettings, saveSettings, effectiveSecret, SECRET_FIELD, SERVICES } from './config.js';
 import { probes } from './services/probe.js';
 import { cached, invalidate } from './cache.js';
 import { fetchRaw, UpstreamError } from './http.js';
@@ -90,193 +66,26 @@ async function gather(tasks) {
   return { items, errors };
 }
 
-// ---- Sign-in ----
-// Until a sign-in method exists, everyone is an admin (single household, nothing to hide).
-const bearer = (req) => {
-  const header = String(req.get('authorization') ?? '');
-  return header.startsWith('Bearer ') ? header.slice(7) : '';
-};
-const identityOf = (req) => readToken(config.authSecret, bearer(req));
-const isAdmin = (req) => !isProtected() || resolveAdmin(identityOf(req));
-const requireAdmin = (req, res, next) => (isAdmin(req) ? next() : res.status(401).json({ error: 'Admin sign-in required' }));
-
-const checkPassword = (password) =>
-  (config.adminPasswordHash && verifyHash(password, config.adminPasswordHash)) || (config.adminPassword && safeEqual(password, config.adminPassword));
-
-/** Sign someone in: remember them, then hand back a token and who they are. */
-function grant(identity, { remember = true } = {}) {
-  if (remember) recordPerson(identity);
-  const admin = resolveAdmin(identity);
-  return {
-    token: issueToken(ensureAuthSecret(), identity),
-    admin,
-    user: { key: identity.key, name: identity.name, avatar: identity.avatar ?? '', provider: identity.provider ?? 'local', admin },
-  };
-}
-
-const describe = (req) => {
-  const identity = identityOf(req);
-  const admin = isAdmin(req);
-  return {
-    admin,
-    user: identity ? { key: identity.key, name: identity.name, avatar: identity.avatar, provider: identity.key.split(':')[0], admin } : null,
-  };
-};
-
-api.get('/config', (req, res) => {
-  res.json({ ...publicConfig(), ...describe(req) });
-});
-
-api.get('/auth/status', (req, res) => {
-  res.json({ protected: isProtected(), providers: signInProviders(), ...describe(req) });
-});
-
-api.post('/auth/login', (req, res) => {
-  const ip = req.ip ?? 'unknown';
-  if (!loginAllowed(ip)) return res.status(429).json({ error: 'Too many attempts — wait 30 seconds' });
-  const password = String(req.body?.password ?? '');
-  if (!signInProviders().password) return res.status(404).json({ error: 'No admin password is set' });
-  if (!password || !checkPassword(password)) {
-    recordFailure(ip);
-    return res.status(401).json({ error: 'Wrong password' });
-  }
-  clearFailures(ip);
-  const name = config.userName?.trim() || 'Admin';
-  res.json(grant({ key: LOCAL_ADMIN_KEY, provider: 'local', name, avatar: '', providerAdmin: true }, { remember: false }));
-});
-
-// Plex: plex.tv issues a PIN, the browser sends the person off to approve it,
-// then we claim the token and check it reaches *this* Plex server.
-//
-// PIN ids are not secret, so each one is tied to a random secret handed only to
-// the browser that started the flow. Without that, anyone who guessed an
-// outstanding PIN could race in and claim someone else's session.
-const pendingPins = new Map();
-const PIN_TTL_MS = 10 * 60_000;
-
-function rememberPin(pinId) {
-  const now = Date.now();
-  for (const [id, p] of pendingPins) if (now - p.created > PIN_TTL_MS) pendingPins.delete(id);
-  if (pendingPins.size > 100) pendingPins.clear();
-  const secret = crypto.randomBytes(24).toString('base64url');
-  pendingPins.set(pinId, { secret, created: now });
-  return secret;
-}
-
-function pinMatches(pinId, given) {
-  const entry = pendingPins.get(pinId);
-  if (!entry) return false;
-  if (Date.now() - entry.created > PIN_TTL_MS) {
-    pendingPins.delete(pinId);
-    return false;
-  }
-  return typeof given === 'string' && safeEqual(given, entry.secret);
-}
-
-api.post('/auth/plex/start', async (_req, res, next) => {
-  try {
-    if (!signInProviders().plex) return res.status(404).json({ error: 'Plex sign-in is not enabled' });
-    const pin = await plexAuth.createPin(ensurePlexClientId());
-    res.json({ ...pin, pinSecret: rememberPin(pin.pinId) });
-  } catch (err) {
-    next(err);
-  }
-});
-
-api.post('/auth/plex/finish', async (req, res, next) => {
-  try {
-    if (!signInProviders().plex) return res.status(404).json({ error: 'Plex sign-in is not enabled' });
-    const pinId = String(req.body?.pinId ?? '');
-    if (!/^[A-Za-z0-9-]{1,64}$/.test(pinId)) return res.status(400).json({ error: 'Bad sign-in reference' });
-    if (!pinMatches(pinId, req.body?.pinSecret)) return res.status(400).json({ error: 'This sign-in has expired. Start again.' });
-    const clientId = ensurePlexClientId();
-    const plexToken = await plexAuth.claimPin(clientId, pinId);
-    if (!plexToken) return res.json({ pending: true });
-
-    const [who, serverId] = await Promise.all([plexAuth.account(clientId, plexToken), plexAuth.machineId(config.plex)]);
-    const { access, owner } = await plexAuth.serverAccess(clientId, plexToken, serverId);
-    pendingPins.delete(pinId); // single use
-    if (!access) return res.status(403).json({ error: `${who.name} does not have access to this Plex server` });
-
-    res.json(grant({ key: `plex:${who.id}`, provider: 'plex', name: who.name, avatar: who.avatar, providerAdmin: owner }));
-  } catch (err) {
-    next(err);
-  }
-});
-
-api.post('/auth/jellyfin', async (req, res, next) => {
-  const ip = req.ip ?? 'unknown';
-  try {
-    if (!signInProviders().jellyfin) return res.status(404).json({ error: 'Jellyfin sign-in is not enabled' });
-    if (!loginAllowed(ip)) return res.status(429).json({ error: 'Too many attempts — wait 30 seconds' });
-    const username = String(req.body?.username ?? '').trim();
-    const password = String(req.body?.password ?? '');
-    if (!username) return res.status(400).json({ error: 'Enter your Jellyfin username' });
-    let who;
-    try {
-      who = await jellyfinAuth.authenticate(config.jellyfin, username, password);
-    } catch (err) {
-      recordFailure(ip);
-      const status = err?.status;
-      return res.status(401).json({ error: status === 401 ? 'Wrong username or password' : err.message ?? 'Jellyfin sign-in failed' });
-    }
-    clearFailures(ip);
-    res.json(grant({ key: `jellyfin:${who.id}`, provider: 'jellyfin', name: who.name, avatar: who.avatar, providerAdmin: who.admin }));
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ---- People and ranks ----
-api.get('/people', requireAdmin, (_req, res) => {
-  res.json({ autoAdmin: config.autoAdmin, signIn: config.signIn, providers: signInProviders(), people: listPeople() });
-});
-
-api.put('/people', requireAdmin, (req, res, next) => {
-  try {
-    const { autoAdmin, admins, forget, signIn } = req.body ?? {};
-    saveAccess({ autoAdmin, admins, forget, signIn });
-    res.json({ autoAdmin: config.autoAdmin, signIn: config.signIn, providers: signInProviders(), people: listPeople() });
-  } catch (err) {
-    next(err);
-  }
-});
-
-api.post('/people/sign-out-everyone', requireAdmin, (req, res) => {
-  const identity = identityOf(req);
-  signEveryoneOut();
-  // Keep whoever asked signed in, so they don't lock themselves out.
-  const token = identity ? issueToken(ensureAuthSecret(), identity) : null;
-  res.json({ ok: true, token });
-});
+api.get('/config', (_req, res) => res.json(publicConfig()));
 
 // ---- Setup wizard / settings ----
-api.get('/setup/status', (req, res) => {
-  const admin = isAdmin(req);
-  res.json({ needsSetup: !anyServiceConfigured(), locked: isProtected() && !admin, settingsFile: admin ? config.settingsFile : '' });
+api.get('/setup/status', (_req, res) => {
+  res.json({ needsSetup: !anyServiceConfigured(), settingsFile: config.settingsFile });
 });
 
-api.get('/settings', requireAdmin, (_req, res) => res.json(getSettings()));
+api.get('/settings', (_req, res) => res.json(getSettings()));
 
-api.put('/settings', requireAdmin, (req, res, next) => {
+api.put('/settings', (req, res, next) => {
   try {
     const settings = saveSettings(req.body);
     invalidate('');
-    // Changing the password rotates the secret; hand the caller a fresh token so they stay signed in.
-    const identity = identityOf(req) ?? { key: LOCAL_ADMIN_KEY, name: config.userName?.trim() || 'Admin', avatar: '', providerAdmin: true };
-    const token = isProtected() ? issueToken(ensureAuthSecret(), identity) : null;
-    const admin = resolveAdmin(identity);
-    res.json({
-      settings,
-      config: { ...publicConfig(), admin, user: { key: identity.key, name: identity.name, avatar: identity.avatar ?? '', provider: identity.key.split(':')[0], admin } },
-      token,
-    });
+    res.json({ settings, config: publicConfig() });
   } catch (err) {
     next(err);
   }
 });
 
-api.post('/settings/test', requireAdmin, async (req, res) => {
+api.post('/settings/test', async (req, res) => {
   const { service, url } = req.body ?? {};
   if (!SERVICES.includes(service)) return res.status(400).json({ ok: false, error: 'Unknown service' });
   const secretField = SECRET_FIELD[service];
@@ -296,29 +105,12 @@ api.post('/settings/test', requireAdmin, async (req, res) => {
 });
 
 
-/**
- * Viewers see what is playing, not who: drop the user and device names.
- * Their own stream is the exception — it is marked so the page can say "You".
- */
-const isOwnStream = (stream, identity) => {
-  if (!identity) return false;
-  const [provider] = identity.key.split(':');
-  return provider === stream.source && Boolean(stream.user) && stream.user.toLowerCase() === identity.name.toLowerCase();
-};
-
-const redactStreams = (result, identity) => ({
-  ...result,
-  items: result.items.map((s) => (isOwnStream(s, identity) ? { ...s, you: true } : { ...s, user: null, device: '', you: false })),
-  redacted: true,
-});
-
-api.get('/streams', async (req, res, next) => {
+api.get('/streams', async (_req, res, next) => {
   try {
     const tasks = [];
     if (config.plex.enabled) tasks.push(['plex', () => plex.sessions(config.plex)]);
     if (config.jellyfin.enabled) tasks.push(['jellyfin', () => jellyfin.sessions(config.jellyfin)]);
-    const result = await cached('streams', 5_000, () => gather(tasks));
-    res.json(config.hideViewers && !isAdmin(req) ? redactStreams(result, identityOf(req)) : result);
+    res.json(await cached('streams', 5_000, () => gather(tasks)));
   } catch (err) {
     next(err);
   }
@@ -373,54 +165,6 @@ api.get('/requests', requireSeerr, async (_req, res, next) => {
   try {
     const items = await cached('requests', 30_000, () => seerr.recentRequests(config.seerr, 12));
     res.json({ items });
-  } catch (err) {
-    next(err);
-  }
-});
-
-api.get('/trending', requireSeerr, async (_req, res, next) => {
-  try {
-    const items = await cached('trending', 60 * 60_000, () => seerr.trending(config.seerr));
-    res.json({ items: items.slice(0, 12) });
-  } catch (err) {
-    next(err);
-  }
-});
-
-api.get('/search', requireSeerr, async (req, res, next) => {
-  try {
-    const q = String(req.query.q ?? '').trim();
-    if (q.length < 2) return res.json({ items: [] });
-    const items = await cached(`search:${q.toLowerCase()}`, 60_000, () => seerr.search(config.seerr, q));
-    res.json({ items: items.slice(0, 18) });
-  } catch (err) {
-    next(err);
-  }
-});
-
-api.get('/media/:type/:tmdbId', requireSeerr, async (req, res, next) => {
-  try {
-    const { type, tmdbId } = req.params;
-    if (!['movie', 'tv'].includes(type) || !/^\d+$/.test(tmdbId)) return res.status(400).json({ error: 'Bad media reference' });
-    res.json(await seerr.details(config.seerr, type, Number(tmdbId)));
-  } catch (err) {
-    next(err);
-  }
-});
-
-api.post('/request', requireSeerr, async (req, res, next) => {
-  try {
-    const { mediaType, tmdbId, seasons } = req.body ?? {};
-    if (!['movie', 'tv'].includes(mediaType) || !Number.isInteger(tmdbId) || tmdbId <= 0) {
-      return res.status(400).json({ error: 'mediaType must be movie|tv and tmdbId a positive integer' });
-    }
-    const cleanSeasons = Array.isArray(seasons) ? seasons.filter((n) => Number.isInteger(n) && n > 0) : undefined;
-    const created = await seerr.createRequest(config.seerr, { mediaType, tmdbId, seasons: cleanSeasons });
-    invalidate('requests');
-    invalidate('search:');
-    invalidate('trending');
-    invalidate(`seerr:details:${mediaType}:${tmdbId}`);
-    res.status(201).json(created);
   } catch (err) {
     next(err);
   }
@@ -499,5 +243,5 @@ app.listen(config.port, () => {
     .map(([name]) => name);
   console.log(`${config.title} listening on http://0.0.0.0:${config.port} (tz ${config.timeZone})`);
   console.log(services.length ? `Connected services: ${services.join(', ')}` : 'No services configured yet — open the web UI to run the setup wizard.');
-  console.log(`Settings file: ${config.settingsFile}${config.adminPassword ? ' (settings locked with ADMIN_PASSWORD)' : ''}`);
+  console.log(`Settings file: ${config.settingsFile}`);
 });

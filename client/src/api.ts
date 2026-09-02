@@ -1,10 +1,4 @@
-import type { AppConfig, AuthStatus, CalendarItem, Errors, MediaDetails, MediaRequest, MediaResult, PeopleState, RecentItem, Settings, SetupStatus, SessionUser, Stream, TestResult } from './types';
-
-export interface Session {
-  token: string | null;
-  admin: boolean;
-  user: SessionUser;
-}
+import type { AppConfig, CalendarItem, Errors, MediaRequest, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
 
 export class ApiError extends Error {
   status: number;
@@ -14,32 +8,8 @@ export class ApiError extends Error {
   }
 }
 
-const TOKEN_KEY = 'cuesheet-admin-token';
-/** Admin session token, kept per browser so you stay signed in on your own devices. */
-export const adminToken = {
-  get: (): string => {
-    try {
-      return localStorage.getItem(TOKEN_KEY) ?? '';
-    } catch {
-      return '';
-    }
-  },
-  set: (value: string | null) => {
-    try {
-      if (value) localStorage.setItem(TOKEN_KEY, value);
-      else localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      /* ignore */
-    }
-  },
-};
-
 async function get<T>(url: string, init?: RequestInit): Promise<T> {
-  const auth = adminToken.get();
-  const res = await fetch(url, {
-    ...init,
-    headers: { Accept: 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}), ...(init?.headers ?? {}) },
-  });
+  const res = await fetch(url, { ...init, headers: { Accept: 'application/json', ...(init?.headers ?? {}) } });
   const text = await res.text();
   let data: any = null;
   try {
@@ -55,7 +25,7 @@ const json = (method: string, body: unknown): RequestInit => ({ method, headers:
 
 export const api = {
   config: () => get<AppConfig>('/api/config'),
-  streams: () => get<{ items: Stream[]; errors: Errors; redacted?: boolean }>('/api/streams'),
+  streams: () => get<{ items: Stream[]; errors: Errors }>('/api/streams'),
   recent: () => get<{ items: RecentItem[]; errors: Errors }>('/api/recent'),
   calendar: (start?: string, end?: string) => {
     const params = new URLSearchParams();
@@ -65,22 +35,8 @@ export const api = {
     return get<{ start: string; end: string; today: string; items: CalendarItem[]; errors: Errors }>(`/api/calendar${qs ? `?${qs}` : ''}`);
   },
   requests: () => get<{ items: MediaRequest[] }>('/api/requests'),
-  trending: () => get<{ items: MediaResult[] }>('/api/trending'),
-  search: (q: string, signal?: AbortSignal) => get<{ items: MediaResult[] }>(`/api/search?q=${encodeURIComponent(q)}`, { signal }),
-  media: (type: 'movie' | 'tv', tmdbId: number) => get<MediaDetails>(`/api/media/${type}/${tmdbId}`),
-  request: (body: { mediaType: 'movie' | 'tv'; tmdbId: number; seasons?: number[] }) =>
-    get<{ id: number | null; requestStatus: string }>('/api/request', json('POST', body)),
   setupStatus: () => get<SetupStatus>('/api/setup/status'),
-  authStatus: () => get<AuthStatus>('/api/auth/status'),
-  login: (password: string) => get<Session>('/api/auth/login', json('POST', { password })),
-  plexStart: () => get<{ pinId: string; pinSecret: string; code: string; authUrl: string }>('/api/auth/plex/start', json('POST', {})),
-  plexFinish: (pinId: string, pinSecret: string) => get<Session | { pending: true }>('/api/auth/plex/finish', json('POST', { pinId, pinSecret })),
-  jellyfinLogin: (username: string, password: string) => get<Session>('/api/auth/jellyfin', json('POST', { username, password })),
-  people: () => get<PeopleState>('/api/people'),
-  savePeople: (patch: { autoAdmin?: boolean; admins?: string[]; forget?: string; signIn?: { plex?: boolean; jellyfin?: boolean } }) =>
-    get<PeopleState>('/api/people', json('PUT', patch)),
-  signOutEveryone: () => get<{ ok: boolean; token: string | null }>('/api/people/sign-out-everyone', json('POST', {})),
   settings: () => get<Settings>('/api/settings'),
-  saveSettings: (patch: unknown) => get<{ settings: Settings; config: AppConfig; token: string | null }>('/api/settings', json('PUT', patch)),
+  saveSettings: (patch: unknown) => get<{ settings: Settings; config: AppConfig }>('/api/settings', json('PUT', patch)),
   testConnection: (body: { service: string; url: string; token?: string; apiKey?: string }) => get<TestResult>('/api/settings/test', json('POST', body)),
 };

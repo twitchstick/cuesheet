@@ -36,6 +36,7 @@ export async function sessions(cfg) {
         offsetMs: offset,
         transcoding,
         transcodeSpeed: transcoding && Number.isFinite(Number(transcode?.speed)) ? Number(transcode.speed) : null,
+        bandwidthKbps: bandwidthOf(m),
         quality: normaliseResolution(m.Media?.[0]?.videoResolution),
         location: m.Session?.location === 'wan' ? 'remote' : m.Session?.location === 'lan' ? 'local' : null,
         poster: imageUrl('plex', isEpisode ? m.grandparentThumb || m.parentThumb || m.thumb : m.thumb),
@@ -104,6 +105,17 @@ export function imageRequest(cfg, ref, { width = 300, height = 450 } = {}) {
     url: ref,
   });
   return { url: `${cfg.url}/photo/:/transcode?${params.toString()}`, headers: headers(cfg) };
+}
+
+/**
+ * What this stream costs the server, in kbps. Plex reports its own estimate
+ * per session; fall back to the file's bitrate when it doesn't.
+ */
+function bandwidthOf(m) {
+  const session = Number(m.Session?.bandwidth);
+  if (Number.isFinite(session) && session > 0) return Math.round(session);
+  const bitrate = Number(m.Media?.[0]?.bitrate);
+  return Number.isFinite(bitrate) && bitrate > 0 ? Math.round(bitrate) : null;
 }
 
 function attentionFor(state, transcoding, transcode) {

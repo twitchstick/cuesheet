@@ -9,55 +9,8 @@ export interface AppConfig {
   timeZone: string;
   refreshSeconds: number;
   services: Record<ServiceName, boolean>;
-  /** An admin password exists. */
-  protected: boolean;
-  /** This browser is signed in as admin (always true when no sign-in method exists). */
-  admin: boolean;
-  /** Who is signed in on this browser, if anyone. */
-  user: SessionUser | null;
-  hideViewers: boolean;
-}
-
-export interface SessionUser {
-  key: string;
-  name: string;
-  avatar: string;
-  provider: 'plex' | 'jellyfin' | 'local' | string;
-  admin: boolean;
-}
-
-export interface SignInProviders {
-  plex: boolean;
-  jellyfin: boolean;
-  password: boolean;
-}
-
-export interface AuthStatus {
-  protected: boolean;
-  providers: SignInProviders;
-  admin: boolean;
-  user: SessionUser | null;
-}
-
-export interface Person {
-  key: string;
-  provider: 'plex' | 'jellyfin' | string;
-  name: string;
-  avatar: string;
-  /** The provider calls them an owner/administrator. */
-  providerAdmin: boolean;
-  /** Explicitly ticked in your admins list. */
-  listed: boolean;
-  /** Resolved rank, listed or automatic. */
-  admin: boolean;
-  lastSeen: number;
-}
-
-export interface PeopleState {
-  autoAdmin: boolean;
-  signIn: { plex: boolean; jellyfin: boolean };
-  providers: SignInProviders;
-  people: Person[];
+  /** Where to send people to make a request, empty when Seerr isn't set up. */
+  seerrUrl: string;
 }
 
 export interface Stream {
@@ -66,7 +19,6 @@ export interface Stream {
   type: 'movie' | 'episode';
   title: string;
   subtitle: string;
-  /** null when the server hides viewer identities from non-admins */
   user: string | null;
   player: string;
   device: string;
@@ -78,8 +30,8 @@ export interface Stream {
   transcodeSpeed: number | null;
   quality: string | null;
   location: 'local' | 'remote' | null;
-  /** Set when this is the signed-in viewer's own stream. */
-  you?: boolean;
+  /** What this stream costs the server right now, in kbps. */
+  bandwidthKbps: number | null;
   poster: string | null;
   backdrop: string | null;
   attention: string | null;
@@ -159,11 +111,6 @@ export interface Settings {
     serverName: string;
     userName: string;
     recentLimit: number;
-    adminPasswordSet: boolean;
-    adminPasswordFromEnv: boolean;
-    hideViewers: boolean;
-    autoAdmin: boolean;
-    signIn: { plex: boolean; jellyfin: boolean };
   };
   plex: ServiceSettings;
   jellyfin: ServiceSettings;
@@ -174,7 +121,6 @@ export interface Settings {
 
 export interface SetupStatus {
   needsSetup: boolean;
-  locked: boolean;
   settingsFile: string;
 }
 

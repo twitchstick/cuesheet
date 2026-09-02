@@ -8,21 +8,29 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/twitchstick/cuesheet</Support>
   <Project>https://github.com/twitchstick/cuesheet</Project>
-  <Overview>Cuesheet is a calm media dashboard for your server: what's playing on Plex and Jellyfin right now, what was recently added, what Radarr and Sonarr expect this week, and a box to request new media through Overseerr or Jellyseerr.&#13;&#13;Open the web UI after starting and a setup wizard walks you through connecting each service and testing it. Everything about your services is configured inside Cuesheet, so there is nothing to fill in here beyond the port, a folder for its settings, and an optional admin password. Everyone in the house can sign in with their existing Plex or Jellyfin account; you decide who is an admin, and everyone else can be kept from seeing who is watching.&#13;&#13;All API keys stay inside the container, stored in the config folder. The browser only ever talks to Cuesheet.</Overview>
+  <Overview>Cuesheet is a calm media dashboard for your server: what's playing on Plex and Jellyfin right now, what was recently added, what Radarr and Sonarr expect this week, and a box to request new media through Overseerr or Jellyseerr. Requests are made in Overseerr or Jellyseerr itself; Cuesheet shows what has been asked for and links straight through.&#13;&#13;Open the web UI after starting and a setup wizard walks you through connecting each service and testing it. Everything about your services is configured inside Cuesheet, so there is nothing to fill in here beyond the port and a folder for its settings. All API keys stay inside the container, stored in the config folder. The browser only ever talks to Cuesheet.</Overview>
   <Category>MediaServer:Video Tools:</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/twitchstick/cuesheet/main/unraid/cuesheet.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/twitchstick/cuesheet/main/docs/icon.png</Icon>
   <Screenshot>https://raw.githubusercontent.com/twitchstick/cuesheet/main/docs/screenshot.png</Screenshot>
   <Changes>
+### 2.0.0
+
+- Live bandwidth: a total for the server plus a figure on every stream.
+- Plex and Jellyfin streams are tinted in each server's own colour.
+- Requests are made in Seerr; the dashboard shows the queue and links across.
+- Busy calendar days scroll instead of stretching the week.
+- Sign-in removed: the dashboard is open to anyone who can reach it.
+
+### 1.1.0
+
+- Services are configured inside Cuesheet rather than here.
+- Recently added scrolls sideways and its length is a setting.
+
 ### 1.0.0
 
 First release.
-
-- Now Playing, Recently Added, a weekly release calendar and Seerr requests on one page.
-- Setup wizard with live connection tests, so no variables need filling in here.
-- Sign in with Plex or Jellyfin, an admin list you control, and viewer privacy for who is watching.
-- Demo mode for a look before anything is connected.
 </Changes>
   <ExtraParams>--restart unless-stopped</ExtraParams>
   <DonateText/>
@@ -30,8 +38,6 @@ First release.
   <Requires/>
   <Config Name="WebUI Port" Target="3000" Default="3000" Mode="tcp" Description="Port the dashboard is served on." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
   <Config Name="Config Folder" Target="/config" Default="/mnt/user/appdata/cuesheet" Mode="rw" Description="Settings saved through the in-app setup wizard are stored here." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/cuesheet</Config>
-  <Config Name="Admin Password" Target="ADMIN_PASSWORD" Default="" Description="Optional shared password; you can also set one in the app, and enable Plex/Jellyfin sign-in there. Admins can open Settings and see who is streaming." Type="Variable" Display="always" Required="false" Mask="true"></Config>
-  <Config Name="Trust Proxy" Target="TRUST_PROXY" Default="" Description="Set to 1 only if Cuesheet sits behind a reverse proxy, so sign-in rate limits see the real client address." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="PUID" Target="PUID" Default="99" Description="User id that owns the config folder." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Description="Group id that owns the config folder." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
   <Config Name="Timezone" Target="TZ" Default="America/New_York" Description="IANA time zone used for the weekly calendar." Type="Variable" Display="always" Required="true" Mask="false">America/New_York</Config>

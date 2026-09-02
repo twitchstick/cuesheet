@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { adminToken, api } from './api';
-import SignInDialog from './components/SignInDialog';
+import { api } from './api';
 import HeroStream from './components/HeroStream';
 import RecentlyAdded from './components/RecentlyAdded';
 import SetupWizard from './components/SetupWizard';
 import Requests from './components/Requests';
-import Sidebar, { AdminBadge, MobileNav, ServicesCard, type ServiceHealth } from './components/Sidebar';
+import Sidebar, { MobileNav, ServicesCard, type ServiceHealth } from './components/Sidebar';
 import StreamGrid from './components/StreamGrid';
 import StreamsPanel from './components/StreamsPanel';
 import Toasts, { type ToastMessage } from './components/Toast';
@@ -13,7 +12,7 @@ import TopBar, { MobileGreeting } from './components/TopBar';
 import WeekCalendar from './components/WeekCalendar';
 import { usePoll } from './hooks/usePoll';
 import { addDays, greeting, mondayOf, toIsoDate } from './lib/format';
-import type { AppConfig, AuthStatus, SetupStatus, View } from './types';
+import type { AppConfig, SetupStatus, View } from './types';
 
 const VIEWS: View[] = ['overview', 'streams', 'recent', 'calendar', 'requests', 'setup'];
 const viewFromHash = (): View => {
@@ -27,15 +26,11 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [view, setView] = useState<View>(viewFromHash);
   const [weekOffset, setWeekOffset] = useState(0);
-  const [focusToken, setFocusToken] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const [setup, setSetup] = useState<SetupStatus | null>(null);
-  const [session, setSession] = useState<AuthStatus | null>(null);
-  const [loginOpen, setLoginOpen] = useState(false);
 
   useEffect(() => {
     api.config().then(setConfig).catch((err) => setConfigError(err.message));
-    api.authStatus().then(setSession).catch(() => setSession(null));
     api
       .setupStatus()
       .then((s) => {
@@ -82,7 +77,6 @@ export default function App() {
   const calendar = usePoll(calendarFetcher, 15 * 60_000, hasCalendar);
 
   const requests = usePoll(api.requests, 60_000, hasSeerr);
-  const trending = usePoll(api.trending, 60 * 60_000, hasSeerr);
 
   // Sidebar service health: green when the last call succeeded, amber when it errored.
   const health = useMemo<ServiceHealth[]>(() => {
@@ -116,47 +110,18 @@ export default function App() {
   const featured = useMemo(() => activeStreams.find((s) => s.state === 'playing') ?? activeStreams[0] ?? null, [activeStreams]);
   const sources = (['plex', 'jellyfin'] as const).filter((s) => services?.[s]);
 
-  const goRequest = () => {
-    navigate('requests');
-    setFocusToken((n) => n + 1);
-  };
-
   const nothingConfigured = config && !hasMediaServer && !hasCalendar && !hasSeerr && view !== 'setup';
   const onSettingsSaved = (next: AppConfig) => {
     setConfig(next);
-    setSetup((s) => (s ? { ...s, needsSetup: false, locked: false } : s));
+    setSetup((s) => (s ? { ...s, needsSetup: false } : s));
     streams.refresh();
     recent.refresh();
     calendar.refresh();
     requests.refresh();
-    trending.refresh();
     navigate('overview');
   };
-  const reloadSession = async () => {
-    try {
-      const [cfg, auth, status] = await Promise.all([api.config(), api.authStatus(), api.setupStatus()]);
-      setConfig(cfg);
-      setSession(auth);
-      setSetup(status);
-    } catch {
-      /* keep what we have */
-    }
-    streams.refresh();
-  };
-  const auth = {
-    protected: Boolean(session?.protected ?? config?.protected),
-    admin: Boolean(session?.admin ?? config?.admin),
-    user: session?.user ?? config?.user ?? null,
-    onSignIn: () => setLoginOpen(true),
-    onSignOut: () => {
-      adminToken.set(null);
-      reloadSession();
-      if (view === 'setup') navigate('overview');
-    },
-  };
   const title = config?.title ?? 'Cuesheet';
-  // Signed in? Greet that person. Otherwise fall back to the household name.
-  const hello = greeting(auth.user?.name || (config?.userName ?? ''), now);
+  const hello = greeting(config?.userName ?? '', now);
   const serverName = config?.serverName ?? '';
 
   const streamErrors = streams.data?.errors ?? (streams.error ? { server: streams.error } : null);
@@ -164,16 +129,14 @@ export default function App() {
     <WeekCalendar start={weekStart} today={calendar.data?.today ?? today} items={calendar.data?.items ?? null} errors={calendar.data?.errors ?? null} loading={calendar.loading} onShift={(days) => setWeekOffset((o) => (days === 0 ? 0 : o + days))} />
   );
   const requestsView = (full: boolean) =>
-    hasSeerr && (
-      <Requests requests={requests.data?.items ?? null} requestsError={requests.error} trending={trending.data?.items ?? null} onRequested={requests.refresh} notify={notify} focusToken={focusToken} full={full} />
-    );
+    hasSeerr && <Requests requests={requests.data?.items ?? null} requestsError={requests.error} seerrUrl={config?.seerrUrl ?? ''} full={full} />;
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar title={title} view={view} available={available} onNavigate={navigate} services={health} auth={auth} />
+      <Sidebar title={title} view={view} available={available} onNavigate={navigate} services={health} />
 
       <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-        <TopBar title={title} serverName={serverName} greeting={hello} canRequest={hasSeerr} onSearch={goRequest} onRequest={goRequest} />
+        <TopBar title={title} serverName={serverName} greeting={hello} seerrUrl={config?.seerrUrl ?? ''} />
         <MobileNav view={view} available={available} onNavigate={navigate} />
         {view === 'overview' && <MobileGreeting serverName={serverName} greeting={hello} />}
 
@@ -209,12 +172,11 @@ export default function App() {
           {view === 'recent' && hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} full />}
           {view === 'calendar' && calendarView}
           {view === 'requests' && requestsView(true)}
-          {view === 'setup' && <SetupWizard firstRun={Boolean(setup?.needsSetup)} locked={Boolean(setup?.locked)} onSaved={onSettingsSaved} onSignedIn={reloadSession} onCancel={() => navigate('overview')} notify={notify} />}
+          {view === 'setup' && <SetupWizard firstRun={Boolean(setup?.needsSetup)} onSaved={onSettingsSaved} onCancel={() => navigate('overview')} notify={notify} />}
           {view !== 'overview' && !available.has(view) && <div className="card p-6 text-sm text-fog-500">That section isn’t enabled. Configure the matching service to turn it on.</div>}
         </div>
 
-        <div className="mt-8 flex flex-col gap-3 lg:hidden">
-          <AdminBadge auth={auth} />
+        <div className="mt-8 lg:hidden">
           <ServicesCard services={health} />
         </div>
 
@@ -224,17 +186,6 @@ export default function App() {
         </footer>
       </main>
 
-      {loginOpen && (
-        <SignInDialog
-          providers={session?.providers ?? { plex: false, jellyfin: false, password: true }}
-          onClose={() => setLoginOpen(false)}
-          onSignedIn={(s) => {
-            setLoginOpen(false);
-            notify(`Signed in as ${s.user.name}`);
-            reloadSession();
-          }}
-        />
-      )}
       <Toasts items={toasts} />
     </div>
   );

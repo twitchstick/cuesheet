@@ -85,3 +85,20 @@ export function playbackLabel(stream: { transcoding: boolean; transcodeSpeed: nu
   if (!stream.transcoding) return 'Direct play';
   return stream.transcodeSpeed !== null ? `Transcode ${stream.transcodeSpeed.toFixed(1)}×` : 'Transcode';
 }
+
+/** kbps as a human number: 5.4 Mbps, 820 kbps. */
+export function bandwidth(kbps: number | null | undefined): string | null {
+  if (!kbps || kbps <= 0) return null;
+  if (kbps < 1000) return `${Math.round(kbps)} kbps`;
+  const mbps = kbps / 1000;
+  return `${mbps >= 10 ? Math.round(mbps) : mbps.toFixed(1)} Mbps`;
+}
+
+export const totalBandwidth = (streams: { bandwidthKbps: number | null }[]): number =>
+  streams.reduce((sum, s) => sum + (s.bandwidthKbps ?? 0), 0);
+
+/** Each media server's own colour, for tinting the streams that come from it. */
+export const serviceTheme: Record<string, { text: string; border: string; bg: string; dot: string }> = {
+  plex: { text: 'text-plex', border: 'border-l-plex', bg: 'bg-plex', dot: 'bg-plex' },
+  jellyfin: { text: 'text-jellyfin', border: 'border-l-jellyfin', bg: 'bg-jellyfin', dot: 'bg-jellyfin' },
+};

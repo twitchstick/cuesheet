@@ -37,6 +37,7 @@ export async function sessions(cfg) {
         offsetMs,
         transcoding: method === 'Transcode',
         transcodeSpeed: null,
+        bandwidthKbps: bandwidthOf(s, item),
         quality: resolutionLabel(item),
         location: locationFor(s.RemoteEndPoint),
         poster: posterFor(item),
@@ -115,6 +116,16 @@ export function imageRequest(cfg, ref, { width = 300, tag, kind } = {}) {
   const params = new URLSearchParams({ maxWidth: String(backdrop ? 1280 : width), quality: '90' });
   if (tag && !backdrop) params.set('tag', tag);
   return { url: `${cfg.url}/Items/${ref}/Images/${backdrop ? 'Backdrop' : 'Primary'}?${params}`, headers: headers(cfg) };
+}
+
+/** Jellyfin reports bits per second; the dashboard works in kbps. */
+function bandwidthOf(session, item) {
+  const bps =
+    Number(session.TranscodingInfo?.Bitrate) ||
+    Number(item.Bitrate) ||
+    Number(item.MediaSources?.[0]?.Bitrate) ||
+    (item.MediaStreams ?? []).reduce((sum, st) => sum + (Number(st.BitRate) || 0), 0);
+  return Number.isFinite(bps) && bps > 0 ? Math.round(bps / 1000) : null;
 }
 
 function locationFor(endpoint) {

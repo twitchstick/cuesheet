@@ -1,6 +1,6 @@
-import { AlertTriangle, ArrowRight } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Gauge } from 'lucide-react';
 import Avatar from './Avatar';
-import { playbackLabel } from '../lib/format';
+import { bandwidth, playbackLabel, serviceTheme, totalBandwidth } from '../lib/format';
 import type { Stream } from '../types';
 
 interface Props {
@@ -20,12 +20,17 @@ export default function StreamsPanel({ streams, featuredId, sources, onViewAll }
   const attention = streams.filter((s) => s.attention);
   const list = [...attention, ...streams.filter((s) => !s.attention && s.id !== featuredId)].slice(0, 4);
 
+  const total = totalBandwidth(streams);
+  const remote = totalBandwidth(streams.filter((s) => s.location === 'remote'));
+  const local = totalBandwidth(streams.filter((s) => s.location !== 'remote'));
+
   return (
     <aside className="card flex flex-col p-5">
       <div className="mb-4 flex items-baseline justify-between">
         <h2 className="text-lg font-bold tracking-tight">Active streams</h2>
         <span className="text-xs text-fog-500">{streams.length} total</span>
       </div>
+
       <div className="grid grid-cols-2 gap-2.5">
         {tiles.map(([label, n]) => (
           <div key={label} className="tile">
@@ -33,6 +38,21 @@ export default function StreamsPanel({ streams, featuredId, sources, onViewAll }
             <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-fog-500">{label}</p>
           </div>
         ))}
+      </div>
+
+      {/* What all of this is costing the server right now. */}
+      <div className="mt-2.5 rounded-xl border border-line bg-gradient-to-r from-accent-500/10 to-glow/10 px-4 py-3">
+        <div className="flex items-baseline justify-between">
+          <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-fog-500">
+            <Gauge className="h-3 w-3" /> Total bandwidth
+          </p>
+          <p className="text-xl font-bold leading-none">{bandwidth(total) ?? '—'}</p>
+        </div>
+        {total > 0 && (
+          <p className="mt-1.5 text-[11px] text-fog-500">
+            {bandwidth(remote) ?? '0'} remote · {bandwidth(local) ?? '0'} local
+          </p>
+        )}
       </div>
 
       {attention.length > 0 && (
@@ -49,25 +69,30 @@ export default function StreamsPanel({ streams, featuredId, sources, onViewAll }
 
       <ul className="mt-3 flex flex-col divide-y divide-line">
         {list.length === 0 && <li className="py-3 text-sm text-fog-500">{streams.length ? 'Everything else is running smoothly.' : 'No active sessions.'}</li>}
-        {list.map((s) => (
-          <li key={s.id} className="flex items-center gap-3 py-2.5">
-            <Avatar name={s.user} className="h-8 w-8 text-xs" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">
-                {s.title}
-                {s.type === 'episode' && <span className="ml-1 font-medium text-fog-300">{s.subtitle.split(' · ')[0]}</span>}
-              </p>
-              <p className="truncate text-xs text-fog-500">
-                {s.you ? 'You' : s.location === 'remote' ? 'Remote' : s.location === 'local' ? 'Local' : (s.user ?? s.player)} · {playbackLabel(s)}
-              </p>
-            </div>
-            {s.attention ? (
-              <span className={`chip ${s.attention === 'Buffering' ? 'bg-live/15 text-live' : 'bg-amber-400/15 text-amber-300'}`}>{s.attention}</span>
-            ) : s.state === 'paused' ? (
-              <span className="chip bg-white/5 text-fog-500">Paused</span>
-            ) : null}
-          </li>
-        ))}
+        {list.map((s) => {
+          const theme = serviceTheme[s.source];
+          const rate = bandwidth(s.bandwidthKbps);
+          return (
+            <li key={s.id} className={`flex items-center gap-3 border-l-2 py-2.5 pl-2.5 ${theme?.border ?? 'border-l-transparent'}`}>
+              <Avatar name={s.user} className="h-8 w-8 text-xs" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">
+                  {s.title}
+                  {s.type === 'episode' && <span className="ml-1 font-medium text-fog-300">{s.subtitle.split(' · ')[0]}</span>}
+                </p>
+                <p className="truncate text-xs text-fog-500">
+                  {s.location === 'remote' ? 'Remote' : s.location === 'local' ? 'Local' : (s.user ?? s.player)} · {playbackLabel(s)}
+                  {rate ? ` · ${rate}` : ''}
+                </p>
+              </div>
+              {s.attention ? (
+                <span className={`chip ${s.attention === 'Buffering' ? 'bg-live/15 text-live' : 'bg-amber-400/15 text-amber-300'}`}>{s.attention}</span>
+              ) : s.state === 'paused' ? (
+                <span className="chip bg-white/5 text-fog-500">Paused</span>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
 
       <button type="button" className="btn-ghost mt-auto w-full" onClick={onViewAll}>

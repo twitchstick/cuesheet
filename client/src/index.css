@@ -27,34 +27,52 @@ body {
   background: transparent;
 }
 
-.card {
-  @apply rounded-2xl border border-line bg-night-800 shadow-card;
+/* Vertical twin of .scroll-row, for a crowded day in the calendar. */
+.scroll-col {
+  scrollbar-width: thin;
+  scrollbar-color: #1e2331 transparent;
+}
+.scroll-col::-webkit-scrollbar {
+  width: 5px;
+}
+.scroll-col::-webkit-scrollbar-thumb {
+  background: #1e2331;
+  border-radius: 999px;
+}
+.scroll-col::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.tile {
-  @apply rounded-xl border border-line bg-night-700 px-4 py-3;
-}
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-night-800 shadow-card;
+  }
 
-.chip {
-  @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider;
-}
+  .tile {
+    @apply rounded-xl border border-line bg-night-700 px-4 py-3;
+  }
 
-.btn {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
-}
-.btn-primary {
-  @apply btn bg-accent-500 text-white shadow-accent hover:bg-accent-400;
-}
-.btn-ghost {
-  @apply btn border border-line bg-night-800 text-fog-100 hover:bg-night-700;
-}
-.btn-quiet {
-  @apply btn bg-white/5 text-fog-100 hover:bg-white/10;
-}
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider;
+  }
 
-.poster-frame {
-  @apply relative overflow-hidden rounded-xl bg-night-700;
-  aspect-ratio: 2 / 3;
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-accent-500 text-white shadow-accent hover:bg-accent-400;
+  }
+  .btn-ghost {
+    @apply btn border border-line bg-night-800 text-fog-100 hover:bg-night-700;
+  }
+  .btn-quiet {
+    @apply btn bg-white/5 text-fog-100 hover:bg-white/10;
+  }
+
+  .poster-frame {
+    @apply relative overflow-hidden rounded-xl bg-night-700;
+    aspect-ratio: 2 / 3;
+  }
 }
 
 .seg {

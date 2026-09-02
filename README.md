@@ -18,13 +18,15 @@ right now, what arrived recently, what is due this week, and a box to ask for
 something new. It runs in Docker, sets itself up from a wizard in the browser,
 and keeps every API key on the server.
 
-- **Now Playing** – active Plex and/or Jellyfin streams with poster, user, player, progress, direct/transcode and resolution.
+- **Now Playing** – active Plex and Jellyfin streams with poster, user, player, progress, direct/transcode, resolution and bandwidth, each tinted in its server's own colour.
 - **Recently Added** – a scrolling poster row merged from Plex and Jellyfin, newest first, as long as you like.
-- **This Week** – a 7-day calendar of Radarr movie releases (cinema / digital / physical) and Sonarr episode air dates, with a check mark on anything already downloaded. Step forward/back a week at a time.
-- **Requests** – search and request movies or shows through Overseerr/Jellyseerr, pick seasons for TV, see what's trending, and a list of recent requests with their status.
-- **Sign-in and admins** – people sign in with Plex, Jellyfin or a shared password. You choose who is an admin, and everyone else can be kept from seeing who is watching.
+- **This Week** – a 7-day calendar of Radarr movie releases (cinema / digital / physical) and Sonarr episode air dates, with a check mark on anything already downloaded. Busy days scroll rather than stretching the row. Step forward/back a week at a time.
+- **Requests** – what the house has asked for through Overseerr or Jellyseerr and where each one stands. Requesting itself happens in Seerr: the *Request media* button opens it in a new tab.
+- **Bandwidth** – what all the streaming is costing the server, split between remote and local, with a figure on every stream.
 
-Every service is optional: configure what you have and the rest of the page simply doesn't render. All API keys stay inside the container, and artwork from your own servers is proxied through Cuesheet so the browser never holds a credential. Request results are the one exception: their artwork comes straight from TMDB, as it does in Overseerr.
+Every service is optional: configure what you have and the rest of the page simply doesn't render. All API keys stay inside the container, and artwork from your own servers is proxied through Cuesheet so the browser never holds a credential. Request artwork is the one exception: it comes straight from TMDB, as it does in Overseerr.
+
+There is no sign-in. Anyone who can reach the page sees the dashboard and can open Settings, so keep it on your own network.
 
 ![Cuesheet](docs/screenshot.png)
 
@@ -34,33 +36,13 @@ Everything about your services is configured inside Cuesheet, not on the contain
 
 The first step also sets *Your name* for the greeting, *Server name* for the small label above it, and how many posters the *Recently added* row holds.
 
-## Who sees what
-
-### Signing in
-
-People can sign in with the accounts they already have:
-
-- **Plex** — the plex.tv PIN flow, the same handshake Overseerr uses. Cuesheet never sees anyone's Plex password, and only accounts you have shared the server with can sign in. Needs outbound access to plex.tv from the container.
-- **Jellyfin** — username and password go straight to your Jellyfin server, which decides whether they're valid.
-- **Admin password** — a shared password set in Settings (or `ADMIN_PASSWORD`), useful before either provider is connected and as a way back in if Plex is unreachable.
-
-Turn the providers on under *People* in Settings. Signing in is optional: anyone can still open the dashboard without it. What it changes is that the greeting uses their name, their own stream is labelled *You*, and admins see everything. Sessions are remembered per browser, so you sign in once on each device.
-
-### Who is an admin
-
-By default the Plex server owner and Jellyfin administrators are, which mirrors what those apps already grant them. You decide the rest: the *People* step lists everyone who has signed in, with a tick box to promote or demote each one, and *Trust the provider's admins* can be switched off so only the people you tick are admins. Ranks are resolved on every request, so a change takes effect immediately without anyone signing in again. *Sign everyone out* invalidates every session but your own.
-
-### What viewers don't see
-
-With *Hide who is watching from non-admins* on (the default), everyone who isn't an admin sees what is playing and its progress but not the user or device behind it. The redaction happens on the server, so the names aren't in the API either. Until any sign-in method exists, everyone is an admin, which is fine for a single household.
-
 ## Running on Unraid (Apollo)
 
 ### Option A – template (recommended)
 
 1. Copy `unraid/cuesheet.xml` to `/boot/config/plugins/dockerMan/templates-user/` on Apollo (via the flash share or `scp`).
 2. Docker tab → **Add Container** → pick **Cuesheet** from the *Template* dropdown.
-3. Leave the *Config Folder* at `/mnt/user/appdata/cuesheet` and optionally set an *Admin Password*. There is nothing else to fill in — your services are added inside the app.
+3. Leave the *Config Folder* at `/mnt/user/appdata/cuesheet`. There is nothing else to fill in — your services are added inside the app.
 4. Apply. Open `http://apollo:3000` and follow the setup wizard (see [Credentials](#credentials) for where each key lives).
 
 The template pulls `ghcr.io/twitchstick/cuesheet:latest`, which is built automatically by the GitHub Actions workflow in this repo on every push to `main` (and tagged releases like `v1.0.0`). If the package is private on GHCR, either make it public in the package settings or log in to GHCR on Apollo first.
@@ -122,23 +104,33 @@ The container starts as root only to make `/config` owned by `PUID:PGID` (defaul
 
 ## Security
 
-Cuesheet is built for a home network. What it does on its own:
+Cuesheet has no accounts and no sign-in: anyone who can open the page sees the
+dashboard and can change its settings. It is built to sit on a home network
+behind your router, not on the open internet.
 
-- **Credentials stay server-side.** Service keys live in `settings.json` (mode `0600`) and are never returned to the browser — the settings API reports only whether a key is set. Posters are proxied so the browser never holds a token, and the proxy only ever returns a bitmap, never active content.
-- **The admin password is stored as a scrypt hash**, minimum 8 characters, with a short lockout after five wrong attempts from one address.
-- **Sessions are HMAC-signed tokens** that carry identity only, never permissions, and expire after 60 days. Rank is resolved from your settings on every request, so promoting or demoting someone applies immediately. Changing the password, or *Sign everyone out*, rotates the signing secret and invalidates every other session.
-- **Plex sign-in is bound to the browser that started it.** Each plex.tv PIN is tied to a random secret handed only to that browser and is single-use, so an outstanding sign-in can't be claimed by someone else.
-- **A connection test will not send a stored key to a different host.** Retesting a saved service reuses its key only when the URL still points at that same server; otherwise you have to type the key in.
-- **Response headers** set a content security policy, `nosniff`, `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`.
+What it still does carefully:
 
-What it deliberately leaves to you:
+- **Credentials stay server-side.** Service keys live in `settings.json`
+  (mode `0600`) inside the config volume and are never returned to the browser —
+  the settings API reports only whether a key is set.
+- **Artwork from your servers is proxied**, so the browser never holds a
+  credential, and the proxy only ever returns a bitmap. Request artwork loads
+  from TMDB in the browser, the same as Overseerr does it.
+- **A connection test will not send a stored key to a different host.**
+  Retesting a saved service reuses its key only when the URL still points at
+  that same server.
+- **Response headers** set a content security policy, `nosniff`,
+  `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`.
 
-- **Anyone who can reach the page can browse it and make Seerr requests.** That is the point of a household dashboard. If the page is reachable by people you don't want requesting media, put it behind a reverse proxy with its own authentication.
-- **There is no HTTPS.** Serve it over a reverse proxy with TLS if it leaves your LAN, and set `TRUST_PROXY=1` so per-address sign-in limits see the real client.
-- **Sessions are kept in browser storage**, so anyone with the device stays signed in until they sign out or the token expires.
-- **Do not expose it to the internet directly.** Use a VPN or an authenticating proxy.
+What is left to you:
 
-Run `npm audit` in both the root and `client/` after changing dependencies; both are expected to report zero vulnerabilities.
+- **Do not expose it to the internet.** With no sign-in, anyone who reaches the
+  page can read your service settings and change them. Use a VPN, or put it
+  behind a reverse proxy that does its own authentication.
+- **There is no HTTPS.** Terminate TLS at a reverse proxy if it leaves your LAN.
+
+Run `npm audit` in both the root and `client/` after changing dependencies;
+both are expected to report zero vulnerabilities.
 
 ## Development
 
@@ -153,9 +145,8 @@ npm run dev           # server on :3000, Vite client on :5173 (proxied to /api)
 ## How it works
 
 - `server/` – Express. One adapter per service under `server/services/`. `/api/streams`, `/api/recent` and `/api/calendar` fan out to every configured source and return `{ items, errors }`, so a single unreachable service shows a small warning instead of breaking the page. Responses are cached briefly (5 s for streams, minutes for the rest) and stale data is served if an upstream errors.
-- `/api/image` – proxies posters from Plex, Jellyfin, Radarr and Sonarr so credentials are never sent to the browser. Seerr results use public TMDB poster URLs.
+- `/api/image` – proxies posters from Plex, Jellyfin, Radarr and Sonarr so credentials are never sent to the browser. Request results use public TMDB poster URLs.
 - `/api/settings` – read (secrets masked), update and test connections from the setup wizard; `server/config.js` merges env defaults with `settings.json`.
-- `/api/auth/*` – sign-in. `server/services/plexAuth.js` runs the plex.tv PIN flow and checks the account reaches this server; `server/services/jellyfinAuth.js` forwards credentials to Jellyfin. A sign-in returns an HMAC-signed token that carries identity only, never permissions — rank is resolved from settings on every request, so promoting or demoting someone applies at once. The admin password is stored as a scrypt hash.
 - `client/` – React + Vite + Tailwind. Polling pauses when the tab is hidden and resumes immediately when it becomes visible, which suits a wall-mounted display.
 
 ## Project

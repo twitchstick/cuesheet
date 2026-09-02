@@ -1,16 +1,15 @@
-import { Plus, Search } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { Logo } from './Sidebar';
 
 interface Props {
   title: string;
   serverName: string;
   greeting: string;
-  canRequest: boolean;
-  onSearch: () => void;
-  onRequest: () => void;
+  /** Seerr's address, empty when it isn't configured. */
+  seerrUrl: string;
 }
 
-export default function TopBar({ title, serverName, greeting, canRequest, onSearch, onRequest }: Props) {
+export default function TopBar({ title, serverName, greeting, seerrUrl }: Props) {
   return (
     <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <div className="flex items-center gap-4">
@@ -23,17 +22,11 @@ export default function TopBar({ title, serverName, greeting, canRequest, onSear
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {canRequest && (
-          <>
-            <button type="button" className="btn-ghost !px-2.5 sm:!px-3.5" onClick={onSearch} aria-label="Search">
-              <Search className="h-4 w-4" />
-              <span className="hidden sm:inline">Search</span>
-            </button>
-            <button type="button" className="btn-primary" onClick={onRequest}>
-              <Plus className="h-4 w-4" />
-              <span>Request<span className="hidden sm:inline"> media</span></span>
-            </button>
-          </>
+        {seerrUrl && (
+          <a href={seerrUrl} target="_blank" rel="noreferrer noopener" className="btn-primary" title="Opens Seerr in a new tab">
+            <span>Request<span className="hidden sm:inline"> media</span></span>
+            <ArrowUpRight className="h-4 w-4" />
+          </a>
         )}
       </div>
     </header>

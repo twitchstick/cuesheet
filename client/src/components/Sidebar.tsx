@@ -1,6 +1,4 @@
-import { CalendarDays, Home, LogIn, LogOut, Play, Plus, Settings, Sparkles } from 'lucide-react';
-import Avatar from './Avatar';
-import type { SessionUser } from '../types';
+import { CalendarDays, Home, Play, Plus, Settings, Sparkles } from 'lucide-react';
 import { sourceLabel } from '../lib/format';
 import Logo from './Logo';
 import type { View } from '../types';
@@ -21,24 +19,15 @@ export interface ServiceHealth {
   ok: boolean | undefined;
 }
 
-export interface AdminState {
-  protected: boolean;
-  admin: boolean;
-  user: SessionUser | null;
-  onSignIn: () => void;
-  onSignOut: () => void;
-}
-
 interface Props {
   title: string;
   view: View;
   available: Set<View>;
   onNavigate: (view: View) => void;
   services: ServiceHealth[];
-  auth: AdminState;
 }
 
-export default function Sidebar({ title, view, available, onNavigate, services, auth }: Props) {
+export default function Sidebar({ title, view, available, onNavigate, services }: Props) {
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-night-900 px-4 py-6 lg:flex">
       <div className="px-2">
@@ -52,34 +41,10 @@ export default function Sidebar({ title, view, available, onNavigate, services, 
           </button>
         ))}
       </nav>
-      <div className="mt-auto flex flex-col gap-3">
-        <AdminBadge auth={auth} />
+      <div className="mt-auto">
         <ServicesCard services={services} />
       </div>
     </aside>
-  );
-}
-
-export function AdminBadge({ auth }: { auth: AdminState }) {
-  if (!auth.protected) return null;
-  if (!auth.user) {
-    return (
-      <button type="button" onClick={auth.onSignIn} className="nav-item justify-center text-xs">
-        <LogIn className="h-3.5 w-3.5 text-fog-500" /> Sign in
-      </button>
-    );
-  }
-  return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-line bg-night-800 px-3 py-2">
-      <Avatar name={auth.user.name} src={auth.user.avatar} className="h-8 w-8 text-xs" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold leading-tight">{auth.user.name}</p>
-        <p className={`text-[11px] ${auth.admin ? 'text-accent-300' : 'text-fog-500'}`}>{auth.admin ? 'Admin' : 'Viewer'}</p>
-      </div>
-      <button type="button" onClick={auth.onSignOut} className="rounded-md p-1.5 text-fog-500 hover:bg-white/5 hover:text-fog-100" title="Sign out" aria-label="Sign out">
-        <LogOut className="h-4 w-4" />
-      </button>
-    </div>
   );
 }
 
