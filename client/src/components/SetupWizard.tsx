@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Eye, EyeOff, Loader2, Lock, Plug, Trash2, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Eye, EyeOff, Loader2, Lock, LogOut, Plug, ShieldCheck, Trash2, UserX, XCircle } from 'lucide-react';
 import { ApiError, adminToken, api } from '../api';
-import type { AppConfig, ServiceName, Settings, TestResult } from '../types';
+import Avatar from './Avatar';
+import { Empty } from './Section';
+import { timeAgo } from '../lib/format';
+import type { AppConfig, PeopleState, ServiceName, Settings, TestResult } from '../types';
 
 interface Props {
   firstRun: boolean;
@@ -53,6 +56,7 @@ const STEPS: { id: string; title: string; caption: string; services: ServiceName
   { id: 'media', title: 'Media servers', caption: 'Plex and Jellyfin', services: ['plex', 'jellyfin'] },
   { id: 'library', title: 'Library', caption: 'Radarr and Sonarr', services: ['radarr', 'sonarr'] },
   { id: 'requests', title: 'Requests', caption: 'Overseerr or Jellyseerr', services: ['seerr'] },
+  { id: 'people', title: 'People', caption: 'Sign-in and admins', services: [] },
   { id: 'review', title: 'Review', caption: 'Check and save', services: [] },
 ];
 
@@ -77,6 +81,7 @@ export default function SetupWizard({ firstRun, locked, onSaved, onSignedIn, onC
   const [tests, setTests] = useState<Partial<Record<ServiceName, TestResult | 'pending'>>>({});
   const [users, setUsers] = useState<Partial<Record<ServiceName, { id: string; name: string }[]>>>({});
   const [saving, setSaving] = useState(false);
+  const [people, setPeople] = useState<PeopleState | null>(null);
 
   const load = async () => {
     setLoadError(null);
@@ -84,6 +89,7 @@ export default function SetupWizard({ firstRun, locked, onSaved, onSignedIn, onC
       const s = await api.settings();
       setDraft(fromSettings(s));
       setNeedsPassword(false);
+      api.people().then(setPeople).catch(() => setPeople(null));
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) setNeedsPassword(true);
       else setLoadError(err instanceof Error ? err.message : 'Could not load settings');
@@ -314,6 +320,8 @@ export default function SetupWizard({ firstRun, locked, onSaved, onSignedIn, onC
             </div>
           )}
 
+          {current.id === 'people' && <PeopleStep state={people} onChange={setPeople} notify={notify} draft={draft} />}
+
           {current.id === 'review' && (
             <div className="flex flex-col gap-4">
               <div>
@@ -332,6 +340,17 @@ export default function SetupWizard({ firstRun, locked, onSaved, onSignedIn, onC
                     </div>
                   </li>
                 ))}
+                <li className="flex items-center gap-3 p-3">
+                  <StateDot state={people && (people.providers.plex || people.providers.jellyfin || people.providers.password) ? 'ok' : 'off'} />
+                  <p className="text-sm">
+                    Sign-in{' '}
+                    <span className="text-fog-500">
+                      {people
+                        ? [people.providers.plex && 'Plex', people.providers.jellyfin && 'Jellyfin', people.providers.password && 'password'].filter(Boolean).join(', ') || 'off — everyone is an admin'
+                        : '—'}
+                    </span>
+                  </p>
+                </li>
                 <li className="flex items-center gap-3 p-3">
                   <StateDot state={draft.general.demo ? 'ok' : 'off'} />
                   <p className="text-sm">
@@ -509,5 +528,162 @@ function ServiceCard({
         {!test && !filled && <span className="text-xs text-fog-700">Leave blank to skip</span>}
       </div>
     </div>
+  );
+}
+
+function PeopleStep({
+  state,
+  onChange,
+  notify,
+  draft,
+}: {
+  state: PeopleState | null;
+  onChange: (s: PeopleState) => void;
+  notify: (message: string, tone?: 'ok' | 'error') => void;
+  draft: Draft;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const apply = async (patch: Parameters<typeof api.savePeople>[0]) => {
+    setBusy(true);
+    try {
+      onChange(await api.savePeople(patch));
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Could not save', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signOutEveryone = async () => {
+    setBusy(true);
+    try {
+      const { token } = await api.signOutEveryone();
+      adminToken.set(token);
+      notify('Everyone has been signed out');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Could not sign everyone out', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!state) {
+    return (
+      <p className="flex items-center gap-2 py-6 text-sm text-fog-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading people…
+      </p>
+    );
+  }
+
+  const toggleAdmin = (key: string, on: boolean) => {
+    const admins = state.people.filter((p) => (p.key === key ? on : p.listed)).map((p) => p.key);
+    apply({ admins });
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <h3 className="text-lg font-bold">Who can sign in</h3>
+        <p className="mt-1 text-sm text-fog-500">
+          Let people sign in with the accounts they already have. Everyone still sees the dashboard without signing in — signing in shows them their own name, and admins see who is watching.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Toggle
+          checked={state.signIn.plex}
+          disabled={busy || !draft.plex.url}
+          onChange={(v) => apply({ signIn: { plex: v } })}
+          title="Sign in with Plex"
+          hint={draft.plex.url ? 'Opens plex.tv. Only accounts you have shared this server with can sign in. The server owner becomes an admin.' : 'Add your Plex server first.'}
+        />
+        <Toggle
+          checked={state.signIn.jellyfin}
+          disabled={busy || !draft.jellyfin.url}
+          onChange={(v) => apply({ signIn: { jellyfin: v } })}
+          title="Sign in with Jellyfin"
+          hint={draft.jellyfin.url ? 'Username and password go straight to your Jellyfin server. Jellyfin administrators become admins.' : 'Add your Jellyfin server first.'}
+        />
+        <Toggle
+          checked={state.autoAdmin}
+          disabled={busy}
+          onChange={(v) => apply({ autoAdmin: v })}
+          title="Trust the provider’s admins"
+          hint="The Plex server owner and Jellyfin administrators become Cuesheet admins automatically. Turn off to grant admin only from the list below."
+        />
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Admins</p>
+            <p className="text-xs text-fog-500">Tick anyone who should see everything and change settings. People appear here after they sign in once.</p>
+          </div>
+          {state.people.length > 0 && (
+            <button type="button" className="btn-quiet !py-1.5 text-xs" onClick={signOutEveryone} disabled={busy}>
+              <LogOut className="h-3.5 w-3.5" /> Sign everyone out
+            </button>
+          )}
+        </div>
+        {state.people.length === 0 ? (
+          <Empty>Nobody has signed in yet.</Empty>
+        ) : (
+          <ul className="card divide-y divide-line">
+            {state.people.map((p) => (
+              <li key={p.key} className="flex items-center gap-3 p-3">
+                <Avatar name={p.name} src={p.avatar} className="h-9 w-9 text-sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">
+                    {p.name}
+                    {p.admin && (
+                      <span className="chip ml-2 bg-accent-500/15 text-accent-300">
+                        <ShieldCheck className="h-2.5 w-2.5" /> Admin
+                      </span>
+                    )}
+                  </p>
+                  <p className="truncate text-[11px] text-fog-500">
+                    {p.provider === 'plex' ? 'Plex' : p.provider === 'jellyfin' ? 'Jellyfin' : p.provider}
+                    {p.providerAdmin ? ` · ${p.provider === 'plex' ? 'server owner' : 'administrator'}` : ''}
+                    {p.lastSeen ? ` · ${timeAgo(p.lastSeen)}` : ''}
+                  </p>
+                </div>
+                {p.providerAdmin && state.autoAdmin && !p.listed ? (
+                  <span className="text-[11px] text-fog-500" title="Admin because you trust the provider’s admins">
+                    automatic
+                  </span>
+                ) : (
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-fog-300">
+                    <input type="checkbox" className="accent-accent-500" checked={p.listed} disabled={busy} onChange={(e) => toggleAdmin(p.key, e.target.checked)} />
+                    Admin
+                  </label>
+                )}
+                <button
+                  type="button"
+                  className="rounded-md p-1.5 text-fog-500 hover:bg-white/5 hover:text-rose-300"
+                  title={`Forget ${p.name}`}
+                  disabled={busy}
+                  onClick={() => apply({ forget: p.key })}
+                >
+                  <UserX className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange, title, hint, disabled }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint: string; disabled?: boolean }) {
+  return (
+    <label className={`flex items-start gap-3 rounded-xl border border-line bg-night-700/60 p-4 ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
+      <input type="checkbox" className="mt-0.5 accent-accent-500" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block text-xs text-fog-500">{hint}</span>
+      </span>
+    </label>
   );
 }

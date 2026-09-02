@@ -1,4 +1,6 @@
-import { CalendarDays, Home, KeyRound, LogOut, Play, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
+import { CalendarDays, Home, LogIn, LogOut, Play, Plus, Settings, Sparkles } from 'lucide-react';
+import Avatar from './Avatar';
+import type { SessionUser } from '../types';
 import { sourceLabel } from '../lib/format';
 import Logo from './Logo';
 import type { View } from '../types';
@@ -22,6 +24,7 @@ export interface ServiceHealth {
 export interface AdminState {
   protected: boolean;
   admin: boolean;
+  user: SessionUser | null;
   onSignIn: () => void;
   onSignOut: () => void;
 }
@@ -59,19 +62,24 @@ export default function Sidebar({ title, view, available, onNavigate, services, 
 
 export function AdminBadge({ auth }: { auth: AdminState }) {
   if (!auth.protected) return null;
-  return auth.admin ? (
-    <div className="flex items-center justify-between rounded-xl border border-accent-500/30 bg-accent-500/10 px-3 py-2 text-xs">
-      <span className="inline-flex items-center gap-1.5 font-semibold text-accent-300">
-        <ShieldCheck className="h-3.5 w-3.5" /> Admin
-      </span>
-      <button type="button" onClick={auth.onSignOut} className="inline-flex items-center gap-1 text-fog-500 hover:text-fog-100" title="Sign out">
-        <LogOut className="h-3.5 w-3.5" /> Sign out
+  if (!auth.user) {
+    return (
+      <button type="button" onClick={auth.onSignIn} className="nav-item justify-center text-xs">
+        <LogIn className="h-3.5 w-3.5 text-fog-500" /> Sign in
+      </button>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl border border-line bg-night-800 px-3 py-2">
+      <Avatar name={auth.user.name} src={auth.user.avatar} className="h-8 w-8 text-xs" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold leading-tight">{auth.user.name}</p>
+        <p className={`text-[11px] ${auth.admin ? 'text-accent-300' : 'text-fog-500'}`}>{auth.admin ? 'Admin' : 'Viewer'}</p>
+      </div>
+      <button type="button" onClick={auth.onSignOut} className="rounded-md p-1.5 text-fog-500 hover:bg-white/5 hover:text-fog-100" title="Sign out" aria-label="Sign out">
+        <LogOut className="h-4 w-4" />
       </button>
     </div>
-  ) : (
-    <button type="button" onClick={auth.onSignIn} className="nav-item justify-center text-xs">
-      <KeyRound className="h-3.5 w-3.5 text-fog-500" /> Admin sign in
-    </button>
   );
 }
 

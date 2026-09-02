@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { hashPassword, newSecret } from './auth.js';
 
 const env = (key, fallback = '') => (process.env[key] ?? fallback).trim();
@@ -29,7 +30,8 @@ function envDefaults() {
       adminPasswordHash: '',
       hideViewers: true,
     },
-    auth: { secret: '' },
+    auth: { secret: '', clientId: '' },
+    access: { autoAdmin: true, admins: [], users: [], signIn: { plex: false, jellyfin: false } },
     plex: { url: env('PLEX_URL'), token: env('PLEX_TOKEN') },
     jellyfin: { url: env('JELLYFIN_URL'), apiKey: env('JELLYFIN_API_KEY'), userId: env('JELLYFIN_USER_ID') },
     radarr: { url: env('RADARR_URL'), apiKey: env('RADARR_API_KEY') },
@@ -66,6 +68,11 @@ export const config = {
   adminPasswordHash: '',
   hideViewers: true,
   authSecret: '',
+  plexClientId: '',
+  autoAdmin: true,
+  admins: [],
+  people: [],
+  signIn: { plex: false, jellyfin: false },
   plex: {},
   jellyfin: {},
   radarr: {},
@@ -76,7 +83,11 @@ export const config = {
 /** Saved settings win over environment variables, field by field. */
 function merged() {
   const base = envDefaults();
-  const out = { general: { ...base.general, ...(saved.general ?? {}) }, auth: { ...base.auth, ...(saved.auth ?? {}) } };
+  const out = {
+    general: { ...base.general, ...(saved.general ?? {}) },
+    auth: { ...base.auth, ...(saved.auth ?? {}) },
+    access: { ...base.access, ...(saved.access ?? {}) },
+  };
   for (const s of SERVICES) out[s] = { ...base[s], ...(saved[s] ?? {}) };
   return out;
 }
@@ -90,6 +101,12 @@ function rebuild() {
   config.adminPasswordHash = String(m.general.adminPasswordHash ?? '');
   config.hideViewers = m.general.hideViewers !== false;
   config.authSecret = String(m.auth.secret ?? '');
+  config.plexClientId = String(m.auth.clientId ?? '');
+  config.autoAdmin = m.access.autoAdmin !== false;
+  config.admins = Array.isArray(m.access.admins) ? m.access.admins.map(String) : [];
+  config.people = Array.isArray(m.access.users) ? m.access.users : [];
+  const signIn = m.access.signIn ?? {};
+  config.signIn = { plex: Boolean(signIn.plex), jellyfin: Boolean(signIn.jellyfin) };
   for (const s of SERVICES) {
     const fields = { url: stripSlash(m[s].url), [SECRET_FIELD[s]]: String(m[s][SECRET_FIELD[s]] ?? '').trim() };
     for (const f of EXTRA_FIELDS[s] ?? []) fields[f] = String(m[s][f] ?? '').trim();
@@ -105,18 +122,110 @@ export const enabledServices = () =>
 
 export const anyServiceConfigured = () => SERVICES.some((s) => config[s].enabled);
 
-/** True when an admin password exists (set in the wizard or via ADMIN_PASSWORD). */
-export const isProtected = () => Boolean(config.adminPasswordHash || config.adminPassword);
+/** Which sign-in methods are actually usable right now. */
+export const signInProviders = () => ({
+  plex: config.signIn.plex && config.plex.enabled,
+  jellyfin: config.signIn.jellyfin && config.jellyfin.enabled,
+  password: Boolean(config.adminPasswordHash || config.adminPassword),
+});
 
-/** Make sure a signing secret exists; persisted so admin sessions survive restarts. */
+/**
+ * True once any sign-in method exists. Until then everyone is an admin,
+ * which is the friendly default for a single household.
+ */
+export const isProtected = () => Object.values(signInProviders()).some(Boolean);
+
+/** Make sure a signing secret exists; persisted so sessions survive restarts. */
 export function ensureAuthSecret() {
   if (config.authSecret) return config.authSecret;
+  patchSaved((next) => {
+    next.auth = { ...(next.auth ?? {}), secret: newSecret() };
+  });
+  return config.authSecret;
+}
+
+/** A stable client identifier for the plex.tv handshake, generated once per install. */
+export function ensurePlexClientId() {
+  if (config.plexClientId) return config.plexClientId;
+  patchSaved((next) => {
+    next.auth = { ...(next.auth ?? {}), clientId: crypto.randomUUID() };
+  });
+  return config.plexClientId;
+}
+
+function patchSaved(mutate) {
   const next = structuredClone(saved);
-  next.auth = { ...(next.auth ?? {}), secret: newSecret() };
+  mutate(next);
   writeSettingsFile(next);
   saved = next;
   rebuild();
-  return config.authSecret;
+}
+
+export const LOCAL_ADMIN_KEY = 'local:admin';
+
+/**
+ * What may this identity do? Resolved live from settings on every request,
+ * so a change to the admins list takes effect without anyone signing in again.
+ */
+export function resolveAdmin(identity) {
+  if (!identity) return false;
+  if (identity.key === LOCAL_ADMIN_KEY) return true;
+  if (config.admins.includes(identity.key)) return true;
+  return config.autoAdmin && Boolean(identity.providerAdmin);
+}
+
+/** Remember someone who signed in, so they can be listed in Settings. */
+export function recordPerson({ key, provider, name, avatar, providerAdmin }) {
+  patchSaved((next) => {
+    const users = Array.isArray(next.access?.users) ? [...next.access.users] : [];
+    const at = users.findIndex((u) => u.key === key);
+    const entry = { key, provider, name, avatar: avatar ?? '', providerAdmin: Boolean(providerAdmin), lastSeen: Date.now() };
+    if (at >= 0) users[at] = { ...users[at], ...entry };
+    else users.push(entry);
+    next.access = { ...(next.access ?? {}), users };
+  });
+}
+
+/** The people list as shown in Settings, with each person's resolved rank. */
+export const listPeople = () =>
+  config.people
+    .map((u) => ({
+      key: u.key,
+      provider: u.provider,
+      name: u.name,
+      avatar: u.avatar ?? '',
+      providerAdmin: Boolean(u.providerAdmin),
+      listed: config.admins.includes(u.key),
+      admin: resolveAdmin(u),
+      lastSeen: u.lastSeen ?? 0,
+    }))
+    .sort((a, b) => b.lastSeen - a.lastSeen);
+
+export function saveAccess({ autoAdmin, admins, forget, signIn }) {
+  patchSaved((next) => {
+    const access = { ...(next.access ?? {}) };
+    if (typeof autoAdmin === 'boolean') access.autoAdmin = autoAdmin;
+    if (signIn && typeof signIn === 'object') {
+      access.signIn = {
+        plex: typeof signIn.plex === 'boolean' ? signIn.plex : Boolean(access.signIn?.plex),
+        jellyfin: typeof signIn.jellyfin === 'boolean' ? signIn.jellyfin : Boolean(access.signIn?.jellyfin),
+      };
+    }
+    if (Array.isArray(admins)) access.admins = admins.filter((k) => typeof k === 'string').slice(0, 200);
+    if (typeof forget === 'string') {
+      access.users = (access.users ?? []).filter((u) => u.key !== forget);
+      access.admins = (access.admins ?? []).filter((k) => k !== forget);
+    }
+    next.access = access;
+  });
+  return { autoAdmin: config.autoAdmin, signIn: config.signIn, people: listPeople() };
+}
+
+/** Rotate the signing secret: every signed-in browser is signed out. */
+export function signEveryoneOut() {
+  patchSaved((next) => {
+    next.auth = { ...(next.auth ?? {}), secret: newSecret() };
+  });
 }
 
 export const publicConfig = () => ({
@@ -142,6 +251,8 @@ export function getSettings() {
       adminPasswordSet: isProtected(),
       adminPasswordFromEnv: Boolean(config.adminPassword),
       hideViewers: config.hideViewers,
+      autoAdmin: config.autoAdmin,
+      signIn: config.signIn,
     },
   };
   for (const s of SERVICES) {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminToken, api } from './api';
-import AdminLogin from './components/AdminLogin';
+import SignInDialog from './components/SignInDialog';
 import HeroStream from './components/HeroStream';
 import RecentlyAdded from './components/RecentlyAdded';
 import SetupWizard from './components/SetupWizard';
@@ -13,7 +13,7 @@ import TopBar, { MobileGreeting } from './components/TopBar';
 import WeekCalendar from './components/WeekCalendar';
 import { usePoll } from './hooks/usePoll';
 import { addDays, greeting, mondayOf, toIsoDate } from './lib/format';
-import type { AppConfig, SetupStatus, View } from './types';
+import type { AppConfig, AuthStatus, SetupStatus, View } from './types';
 
 const VIEWS: View[] = ['overview', 'streams', 'recent', 'calendar', 'requests', 'setup'];
 const viewFromHash = (): View => {
@@ -30,10 +30,12 @@ export default function App() {
   const [focusToken, setFocusToken] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const [setup, setSetup] = useState<SetupStatus | null>(null);
+  const [session, setSession] = useState<AuthStatus | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
 
   useEffect(() => {
     api.config().then(setConfig).catch((err) => setConfigError(err.message));
+    api.authStatus().then(setSession).catch(() => setSession(null));
     api
       .setupStatus()
       .then((s) => {
@@ -132,8 +134,9 @@ export default function App() {
   };
   const reloadSession = async () => {
     try {
-      const [cfg, status] = await Promise.all([api.config(), api.setupStatus()]);
+      const [cfg, auth, status] = await Promise.all([api.config(), api.authStatus(), api.setupStatus()]);
       setConfig(cfg);
+      setSession(auth);
       setSetup(status);
     } catch {
       /* keep what we have */
@@ -141,8 +144,9 @@ export default function App() {
     streams.refresh();
   };
   const auth = {
-    protected: Boolean(config?.protected),
-    admin: Boolean(config?.admin),
+    protected: Boolean(session?.protected ?? config?.protected),
+    admin: Boolean(session?.admin ?? config?.admin),
+    user: session?.user ?? config?.user ?? null,
     onSignIn: () => setLoginOpen(true),
     onSignOut: () => {
       adminToken.set(null);
@@ -151,7 +155,8 @@ export default function App() {
     },
   };
   const title = config?.title ?? 'Cuesheet';
-  const hello = greeting(config?.userName ?? '', now);
+  // Signed in? Greet that person. Otherwise fall back to the household name.
+  const hello = greeting(auth.user?.name || (config?.userName ?? ''), now);
   const serverName = config?.serverName ?? '';
 
   const streamErrors = streams.data?.errors ?? (streams.error ? { server: streams.error } : null);
@@ -220,11 +225,12 @@ export default function App() {
       </main>
 
       {loginOpen && (
-        <AdminLogin
+        <SignInDialog
+          providers={session?.providers ?? { plex: false, jellyfin: false, password: true }}
           onClose={() => setLoginOpen(false)}
-          onSignedIn={() => {
+          onSignedIn={(s) => {
             setLoginOpen(false);
-            notify('Signed in as admin');
+            notify(`Signed in as ${s.user.name}`);
             reloadSession();
           }}
         />

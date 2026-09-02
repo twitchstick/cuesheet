@@ -1,4 +1,10 @@
-import type { AppConfig, CalendarItem, Errors, MediaDetails, MediaRequest, MediaResult, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
+import type { AppConfig, AuthStatus, CalendarItem, Errors, MediaDetails, MediaRequest, MediaResult, PeopleState, RecentItem, Settings, SetupStatus, SessionUser, Stream, TestResult } from './types';
+
+export interface Session {
+  token: string | null;
+  admin: boolean;
+  user: SessionUser;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -65,7 +71,15 @@ export const api = {
   request: (body: { mediaType: 'movie' | 'tv'; tmdbId: number; seasons?: number[] }) =>
     get<{ id: number | null; requestStatus: string }>('/api/request', json('POST', body)),
   setupStatus: () => get<SetupStatus>('/api/setup/status'),
-  login: (password: string) => get<{ token: string | null; admin: boolean }>('/api/auth/login', json('POST', { password })),
+  authStatus: () => get<AuthStatus>('/api/auth/status'),
+  login: (password: string) => get<Session>('/api/auth/login', json('POST', { password })),
+  plexStart: () => get<{ pinId: string; code: string; authUrl: string }>('/api/auth/plex/start', json('POST', {})),
+  plexFinish: (pinId: string) => get<Session | { pending: true }>('/api/auth/plex/finish', json('POST', { pinId })),
+  jellyfinLogin: (username: string, password: string) => get<Session>('/api/auth/jellyfin', json('POST', { username, password })),
+  people: () => get<PeopleState>('/api/people'),
+  savePeople: (patch: { autoAdmin?: boolean; admins?: string[]; forget?: string; signIn?: { plex?: boolean; jellyfin?: boolean } }) =>
+    get<PeopleState>('/api/people', json('PUT', patch)),
+  signOutEveryone: () => get<{ ok: boolean; token: string | null }>('/api/people/sign-out-everyone', json('POST', {})),
   settings: () => get<Settings>('/api/settings'),
   saveSettings: (patch: unknown) => get<{ settings: Settings; config: AppConfig; token: string | null }>('/api/settings', json('PUT', patch)),
   testConnection: (body: { service: string; url: string; token?: string; apiKey?: string }) => get<TestResult>('/api/settings/test', json('POST', body)),

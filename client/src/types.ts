@@ -11,9 +11,53 @@ export interface AppConfig {
   services: Record<ServiceName, boolean>;
   /** An admin password exists. */
   protected: boolean;
-  /** This browser is signed in as admin (always true when no password is set). */
+  /** This browser is signed in as admin (always true when no sign-in method exists). */
   admin: boolean;
+  /** Who is signed in on this browser, if anyone. */
+  user: SessionUser | null;
   hideViewers: boolean;
+}
+
+export interface SessionUser {
+  key: string;
+  name: string;
+  avatar: string;
+  provider: 'plex' | 'jellyfin' | 'local' | string;
+  admin: boolean;
+}
+
+export interface SignInProviders {
+  plex: boolean;
+  jellyfin: boolean;
+  password: boolean;
+}
+
+export interface AuthStatus {
+  protected: boolean;
+  providers: SignInProviders;
+  admin: boolean;
+  user: SessionUser | null;
+}
+
+export interface Person {
+  key: string;
+  provider: 'plex' | 'jellyfin' | string;
+  name: string;
+  avatar: string;
+  /** The provider calls them an owner/administrator. */
+  providerAdmin: boolean;
+  /** Explicitly ticked in your admins list. */
+  listed: boolean;
+  /** Resolved rank, listed or automatic. */
+  admin: boolean;
+  lastSeen: number;
+}
+
+export interface PeopleState {
+  autoAdmin: boolean;
+  signIn: { plex: boolean; jellyfin: boolean };
+  providers: SignInProviders;
+  people: Person[];
 }
 
 export interface Stream {
@@ -34,6 +78,8 @@ export interface Stream {
   transcodeSpeed: number | null;
   quality: string | null;
   location: 'local' | 'remote' | null;
+  /** Set when this is the signed-in viewer's own stream. */
+  you?: boolean;
   poster: string | null;
   backdrop: string | null;
   attention: string | null;
@@ -117,6 +163,8 @@ export interface Settings {
     adminPasswordSet: boolean;
     adminPasswordFromEnv: boolean;
     hideViewers: boolean;
+    autoAdmin: boolean;
+    signIn: { plex: boolean; jellyfin: boolean };
   };
   plex: ServiceSettings;
   jellyfin: ServiceSettings;

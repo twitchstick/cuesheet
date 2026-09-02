@@ -19,7 +19,7 @@
   <Requires/>
   <Config Name="WebUI Port" Target="3000" Default="3000" Mode="tcp" Description="Port the dashboard is served on." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
   <Config Name="Config Folder" Target="/config" Default="/mnt/user/appdata/cuesheet" Mode="rw" Description="Settings saved through the in-app setup wizard are stored here." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/cuesheet</Config>
-  <Config Name="Admin Password" Target="ADMIN_PASSWORD" Default="" Description="Optional; you can also set one in the app. With a password, only signed-in admins can open Settings or see who is streaming." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="Admin Password" Target="ADMIN_PASSWORD" Default="" Description="Optional shared password; you can also set one in the app, and enable Plex/Jellyfin sign-in there. Admins can open Settings and see who is streaming." Type="Variable" Display="always" Required="false" Mask="true"></Config>
   <Config Name="PUID" Target="PUID" Default="99" Description="User id that owns the config folder." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Description="Group id that owns the config folder." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
   <Config Name="Timezone" Target="TZ" Default="America/New_York" Description="IANA time zone used for the weekly calendar." Type="Variable" Display="always" Required="true" Mask="false">America/New_York</Config>

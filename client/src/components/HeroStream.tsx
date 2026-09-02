@@ -48,7 +48,7 @@ export default function HeroStream({ stream, loading }: Props) {
         <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-5xl">{stream.title}</h2>
         {stream.type === 'episode' && <p className="mt-1.5 text-base text-fog-300">{stream.subtitle}</p>}
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-fog-300">
-          {stream.user && <span className="font-medium text-fog-100">{stream.user}</span>}
+          {(stream.you || stream.user) && <span className="font-medium text-fog-100">{stream.you && !stream.user ? 'You' : stream.user}</span>}
           <span>{stream.device || stream.player}</span>
           <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-fog-100">{quality}</span>
           {paused && <Pause className="h-4 w-4 text-fog-300" fill="currentColor" />}

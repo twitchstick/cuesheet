@@ -12,7 +12,17 @@ Every service is optional: configure what you have and the rest of the page simp
 
 **Setup wizard.** On first run the app opens a setup wizard: enter each service's URL and key, hit *Test connection* to confirm it (Jellyfin and Seerr also let you pick a user from a list), and save. Settings are written to `settings.json` in the data directory (`/config` in the container) and override any environment variables. Reopen it any time from *Settings* in the sidebar.
 
-**Admin and viewers.** Set an admin password on the first wizard step (or via `ADMIN_PASSWORD`). Then only signed-in admins can open Settings, and, with *Hide who is watching from non-admins* on (the default), everyone else sees what is playing and its progress but not the user or device behind it. The redaction happens on the server, so the names aren't in the API either. Sign in from the *Admin sign in* button at the bottom of the sidebar; the session is remembered per browser. Without a password everyone is an admin, which is fine for a single household.
+**Signing in.** People can sign in with the accounts they already have:
+
+- **Plex** — the plex.tv PIN flow, the same handshake Overseerr uses. Cuesheet never sees anyone's Plex password, and only accounts you have shared the server with can sign in. Needs outbound access to plex.tv from the container.
+- **Jellyfin** — username and password go straight to your Jellyfin server, which decides whether they're valid.
+- **Admin password** — a shared password set in Settings (or `ADMIN_PASSWORD`), useful before either provider is connected and as a way back in if Plex is unreachable.
+
+Turn the providers on under *People* in Settings. Signing in is optional: anyone can still open the dashboard without it. What it changes is that the greeting uses their name, their own stream is labelled *You*, and admins see everything.
+
+**Who is an admin.** By default the Plex server owner and Jellyfin administrators are, which mirrors what those apps already grant them. You decide the rest: the *People* step lists everyone who has signed in, with a tick box to promote or demote each one, and *Trust the provider's admins* can be switched off so only the people you tick are admins. Ranks are resolved on every request, so a change takes effect immediately without anyone signing in again. *Sign everyone out* invalidates every session but your own.
+
+**What viewers don't see.** With *Hide who is watching from non-admins* on (the default), everyone who isn't an admin sees what is playing and its progress but not the user or device behind it. The redaction happens on the server, so the names aren't in the API either. Until any sign-in method exists, everyone is an admin, which is fine for a single household.
 
 Turn on *Show demo data* (or set `DEMO_MODE=true`) to see the whole dashboard populated with sample data before connecting anything. *Your name* personalises the greeting and *Server name* is the small label above it.
 
