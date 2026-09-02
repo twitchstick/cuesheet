@@ -40,13 +40,18 @@ const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
 /**
  * @param {object} identity { key, name, avatar, providerAdmin }
  */
+/** How long a signed-in browser stays signed in. */
+export const SESSION_DAYS = 60;
+
 export function issueToken(secret, identity) {
+  const now = Date.now();
   const payload = `v1.${b64({
     k: identity.key,
     n: identity.name ?? '',
     av: identity.avatar ?? '',
     pa: Boolean(identity.providerAdmin),
-    t: Date.now(),
+    t: now,
+    exp: now + SESSION_DAYS * 86_400_000,
   })}`;
   return `${payload}.${sign(secret, payload)}`;
 }
@@ -62,6 +67,7 @@ export function readToken(secret, token) {
   try {
     const data = JSON.parse(Buffer.from(payload.slice(3), 'base64url').toString('utf8'));
     if (!data?.k || typeof data.k !== 'string') return null;
+    if (typeof data.exp !== 'number' || data.exp < Date.now()) return null;
     return { key: data.k, name: String(data.n ?? ''), avatar: String(data.av ?? ''), providerAdmin: Boolean(data.pa) };
   } catch {
     return null;
@@ -70,17 +76,27 @@ export function readToken(secret, token) {
 
 /** Tiny brute-force brake: after 5 failed sign-ins from one address, refuse for 30s. */
 const failures = new Map();
+const FAILURE_WINDOW_MS = 30_000;
+
+/** Drop stale entries so a flood of addresses can't grow the map without bound. */
+function prune() {
+  const cutoff = Date.now() - FAILURE_WINDOW_MS;
+  for (const [ip, f] of failures) if (f.last < cutoff) failures.delete(ip);
+}
+
 export function loginAllowed(ip) {
   const f = failures.get(ip);
   if (!f) return true;
   if (f.count < 5) return true;
-  if (Date.now() - f.last > 30_000) {
+  if (Date.now() - f.last > FAILURE_WINDOW_MS) {
     failures.delete(ip);
     return true;
   }
   return false;
 }
 export function recordFailure(ip) {
+  prune();
+  if (failures.size > 5_000) failures.clear();
   const f = failures.get(ip) ?? { count: 0, last: 0 };
   failures.set(ip, { count: f.count + 1, last: Date.now() });
 }

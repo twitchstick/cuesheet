@@ -102,7 +102,7 @@ function PlexSignIn({
     // Open the popup from inside the click so browsers don't block it.
     const popup = window.open('', 'cuesheet-plex', 'width=620,height=720');
     try {
-      const { pinId, authUrl } = await api.plexStart();
+      const { pinId, pinSecret, authUrl } = await api.plexStart();
       if (popup) popup.location.href = authUrl;
       else window.location.href = authUrl;
       setWaiting(true);
@@ -111,7 +111,7 @@ function PlexSignIn({
       for (let i = 0; i < 90 && !cancelled.current; i += 1) {
         await new Promise((r) => setTimeout(r, 2000));
         if (cancelled.current) return;
-        const result = await api.plexFinish(pinId);
+        const result = await api.plexFinish(pinId, pinSecret);
         if (!('pending' in result)) {
           popup?.close();
           onSignedIn(result);

@@ -303,7 +303,7 @@ export function saveSettings(patch) {
     if (typeof g.demo === 'boolean') next.general.demo = g.demo;
     if (typeof g.hideViewers === 'boolean') next.general.hideViewers = g.hideViewers;
     if (typeof g.adminPassword === 'string' && g.adminPassword.trim()) {
-      if (g.adminPassword.trim().length < 4) throw new SettingsError('Admin password must be at least 4 characters');
+      if (g.adminPassword.trim().length < 8) throw new SettingsError('Admin password must be at least 8 characters');
       next.general.adminPasswordHash = hashPassword(g.adminPassword.trim());
       next.auth = { ...(next.auth ?? {}), secret: newSecret() }; // sign everyone out
     }
@@ -343,8 +343,26 @@ function writeSettingsFile(data) {
   }
 }
 
-/** Resolve the effective secret for a probe: the one typed in the wizard, or the stored one. */
-export function effectiveSecret(service, provided) {
+const origin = (url) => {
+  try {
+    return new URL(url).origin.toLowerCase();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Resolve the credential for a connection test: the one typed into the wizard,
+ * or the stored one — but the stored one only when the URL being tested is the
+ * same server it belongs to. Without that check, anyone who can reach the
+ * settings API could point a test at a host they control and have Cuesheet
+ * hand over the saved key.
+ */
+export function effectiveSecret(service, provided, url) {
   const typed = typeof provided === 'string' ? provided.trim() : '';
-  return typed || config[service][SECRET_FIELD[service]] || '';
+  if (typed) return typed;
+  const stored = config[service][SECRET_FIELD[service]] || '';
+  if (!stored) return '';
+  const target = origin(url);
+  return target && target === origin(config[service].url) ? stored : '';
 }

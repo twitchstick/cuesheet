@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,7 +40,34 @@ import * as demo from './demo.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.disable('x-powered-by');
+app.set('query parser', 'simple');
+// Behind a reverse proxy, set TRUST_PROXY (e.g. "1") so per-address sign-in
+// limits see the real client and not the proxy.
+if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? true : process.env.TRUST_PROXY);
 app.use(express.json({ limit: '32kb' }));
+
+// The page only ever loads its own bundle; posters come from us or from TMDB.
+const CSP = [
+  "default-src 'self'",
+  "img-src 'self' data: https:",
+  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self'",
+  "connect-src 'self'",
+  "font-src 'self' data:",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join('; ');
+
+app.use((_req, res, next) => {
+  res.set('Content-Security-Policy', CSP);
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'DENY');
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
+  next();
+});
 
 const api = express.Router();
 api.use((_req, res, next) => {
@@ -120,11 +148,37 @@ api.post('/auth/login', (req, res) => {
 
 // Plex: plex.tv issues a PIN, the browser sends the person off to approve it,
 // then we claim the token and check it reaches *this* Plex server.
+//
+// PIN ids are not secret, so each one is tied to a random secret handed only to
+// the browser that started the flow. Without that, anyone who guessed an
+// outstanding PIN could race in and claim someone else's session.
+const pendingPins = new Map();
+const PIN_TTL_MS = 10 * 60_000;
+
+function rememberPin(pinId) {
+  const now = Date.now();
+  for (const [id, p] of pendingPins) if (now - p.created > PIN_TTL_MS) pendingPins.delete(id);
+  if (pendingPins.size > 100) pendingPins.clear();
+  const secret = crypto.randomBytes(24).toString('base64url');
+  pendingPins.set(pinId, { secret, created: now });
+  return secret;
+}
+
+function pinMatches(pinId, given) {
+  const entry = pendingPins.get(pinId);
+  if (!entry) return false;
+  if (Date.now() - entry.created > PIN_TTL_MS) {
+    pendingPins.delete(pinId);
+    return false;
+  }
+  return typeof given === 'string' && safeEqual(given, entry.secret);
+}
+
 api.post('/auth/plex/start', async (_req, res, next) => {
   try {
     if (!signInProviders().plex) return res.status(404).json({ error: 'Plex sign-in is not enabled' });
     const pin = await plexAuth.createPin(ensurePlexClientId());
-    res.json(pin);
+    res.json({ ...pin, pinSecret: rememberPin(pin.pinId) });
   } catch (err) {
     next(err);
   }
@@ -135,12 +189,14 @@ api.post('/auth/plex/finish', async (req, res, next) => {
     if (!signInProviders().plex) return res.status(404).json({ error: 'Plex sign-in is not enabled' });
     const pinId = String(req.body?.pinId ?? '');
     if (!/^[A-Za-z0-9-]{1,64}$/.test(pinId)) return res.status(400).json({ error: 'Bad sign-in reference' });
+    if (!pinMatches(pinId, req.body?.pinSecret)) return res.status(400).json({ error: 'This sign-in has expired. Start again.' });
     const clientId = ensurePlexClientId();
     const plexToken = await plexAuth.claimPin(clientId, pinId);
     if (!plexToken) return res.json({ pending: true });
 
     const [who, serverId] = await Promise.all([plexAuth.account(clientId, plexToken), plexAuth.machineId(config.plex)]);
     const { access, owner } = await plexAuth.serverAccess(clientId, plexToken, serverId);
+    pendingPins.delete(pinId); // single use
     if (!access) return res.status(403).json({ error: `${who.name} does not have access to this Plex server` });
 
     res.json(grant({ key: `plex:${who.id}`, provider: 'plex', name: who.name, avatar: who.avatar, providerAdmin: owner }));
@@ -197,7 +253,8 @@ api.post('/people/sign-out-everyone', requireAdmin, (req, res) => {
 
 // ---- Setup wizard / settings ----
 api.get('/setup/status', (req, res) => {
-  res.json({ needsSetup: !anyServiceConfigured() && !config.demo, locked: isProtected() && !isAdmin(req), settingsFile: config.settingsFile });
+  const admin = isAdmin(req);
+  res.json({ needsSetup: !anyServiceConfigured() && !config.demo, locked: isProtected() && !admin, settingsFile: admin ? config.settingsFile : '' });
 });
 
 api.get('/settings', requireAdmin, (_req, res) => res.json(getSettings()));
@@ -224,10 +281,10 @@ api.post('/settings/test', requireAdmin, async (req, res) => {
   const { service, url } = req.body ?? {};
   if (!SERVICES.includes(service)) return res.status(400).json({ ok: false, error: 'Unknown service' });
   const secretField = SECRET_FIELD[service];
-  const secret = effectiveSecret(service, req.body?.[secretField]);
   const target = String(url ?? '').trim();
   if (!target) return res.status(400).json({ ok: false, error: 'Enter the server URL first' });
   if (!/^https?:\/\//i.test(target)) return res.status(400).json({ ok: false, error: 'URL must start with http:// or https://' });
+  const secret = effectiveSecret(service, req.body?.[secretField], target);
   if (!secret) return res.status(400).json({ ok: false, error: `Enter the ${service === 'plex' ? 'token' : 'API key'} first` });
   try {
     const result = await probes[service]({ url: target, [secretField]: secret });
@@ -382,6 +439,7 @@ api.post('/request', requireSeerr, async (req, res, next) => {
 });
 
 // Image proxy: the browser never needs upstream URLs or credentials.
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 const IMAGE_SOURCES = {
   plex: (ref, q) => plex.imageRequest(config.plex, ref, { width: q.w, height: q.h }),
   jellyfin: (ref, q) => jellyfin.imageRequest(config.jellyfin, ref, { width: q.w, tag: q.tag }),
@@ -410,7 +468,14 @@ api.get('/image', async (req, res) => {
   try {
     const upstream = await fetchRaw(target.url, { headers: { ...target.headers, Accept: 'image/*' } });
     if (!upstream.ok || !upstream.body) return res.status(upstream.status === 404 ? 404 : 502).end();
-    res.set('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
+    // Only ever hand back a bitmap. Echoing the upstream content type would let
+    // anything served from a media server become active content on our origin.
+    const type = (upstream.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+    if (!ALLOWED_IMAGE_TYPES.has(type)) {
+      console.warn(`[image:${source}] refused content type ${type || 'none'}`);
+      return res.status(502).end();
+    }
+    res.set('Content-Type', type);
     res.set('Cache-Control', 'public, max-age=86400');
     const bytes = Buffer.from(await upstream.arrayBuffer());
     res.send(bytes);
@@ -434,7 +499,11 @@ app.use('/api', api);
 // Serve the built client (client/dist) with an SPA fallback.
 const clientDir = path.resolve(__dirname, '../client/dist');
 app.use(express.static(clientDir, { maxAge: '1h', index: false }));
-app.get('*', (req, res) => {
+// Final catch-all: hand every other GET the single-page app.
+// A plain middleware (rather than a wildcard route) keeps "/" covered and
+// behaves the same on Express 4 and 5.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
   if (req.path.startsWith('/api/')) return res.status(404).end();
   res.set('Cache-Control', 'no-cache');
   res.sendFile(path.join(clientDir, 'index.html'), (err) => {
