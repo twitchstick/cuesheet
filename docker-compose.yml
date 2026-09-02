@@ -1,0 +1,15 @@
+# Local build. On Unraid, prefer the template in unraid/cuesheet.xml or the
+# pre-built image ghcr.io/twitchstick/cuesheet:latest.
+services:
+  cuesheet:
+    build: .
+    image: cuesheet:local
+    container_name: cuesheet
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      # Settings saved through the setup wizard live here.
+      - ./data:/config

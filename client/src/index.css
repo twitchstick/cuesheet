@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  @apply bg-night-950 text-fog-100 antialiased;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+.scroll-row {
+  scrollbar-width: thin;
+  scrollbar-color: #1e2331 transparent;
+}
+.scroll-row::-webkit-scrollbar {
+  height: 6px;
+}
+.scroll-row::-webkit-scrollbar-thumb {
+  background: #1e2331;
+  border-radius: 999px;
+}
+.scroll-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.card {
+  @apply rounded-2xl border border-line bg-night-800 shadow-card;
+}
+
+.tile {
+  @apply rounded-xl border border-line bg-night-700 px-4 py-3;
+}
+
+.chip {
+  @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-primary {
+  @apply btn bg-accent-500 text-white shadow-accent hover:bg-accent-400;
+}
+.btn-ghost {
+  @apply btn border border-line bg-night-800 text-fog-100 hover:bg-night-700;
+}
+.btn-quiet {
+  @apply btn bg-white/5 text-fog-100 hover:bg-white/10;
+}
+
+.poster-frame {
+  @apply relative overflow-hidden rounded-xl bg-night-700;
+  aspect-ratio: 2 / 3;
+}
+
+.seg {
+  @apply inline-flex rounded-xl border border-line bg-night-800 p-1;
+}
+.seg button {
+  @apply rounded-lg px-3 py-1 text-sm text-fog-500 transition-colors;
+}
+.seg button[aria-pressed='true'] {
+  @apply bg-night-600 text-fog-100;
+}
+
+.nav-item {
+  @apply flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm text-fog-300 transition-colors hover:bg-white/5 hover:text-fog-100;
+}
+.nav-item[aria-current='page'] {
+  @apply bg-night-700 text-fog-100 ring-1 ring-line;
+}
