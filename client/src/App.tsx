@@ -89,7 +89,7 @@ export default function App() {
     if (!services) return [];
     const list: ServiceHealth[] = [];
     for (const name of ['plex', 'jellyfin'] as const) {
-      if (!services[name] || (config?.demo && !streams.data)) continue;
+      if (!services[name]) continue;
       const err = streams.data?.errors?.[name] ?? recent.data?.errors?.[name];
       list.push({ name, ok: streams.data || recent.data ? !err : undefined });
     }
@@ -99,7 +99,7 @@ export default function App() {
     }
     if (services.seerr) list.push({ name: 'seerr', ok: requests.data ? true : requests.error ? false : undefined });
     return list;
-  }, [services, config?.demo, streams.data, recent.data, calendar.data, requests.data, requests.error]);
+  }, [services, streams.data, recent.data, calendar.data, requests.data, requests.error]);
 
   const available = useMemo(() => {
     const set = new Set<View>(['overview', 'setup']);
@@ -173,7 +173,7 @@ export default function App() {
       <Sidebar title={title} view={view} available={available} onNavigate={navigate} services={health} auth={auth} />
 
       <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-        <TopBar title={title} serverName={serverName} greeting={hello} demo={Boolean(config?.demo)} canRequest={hasSeerr} onSearch={goRequest} onRequest={goRequest} />
+        <TopBar title={title} serverName={serverName} greeting={hello} canRequest={hasSeerr} onSearch={goRequest} onRequest={goRequest} />
         <MobileNav view={view} available={available} onNavigate={navigate} />
         {view === 'overview' && <MobileGreeting serverName={serverName} greeting={hello} />}
 
@@ -183,7 +183,7 @@ export default function App() {
           <div className="card mb-6 flex flex-wrap items-center justify-between gap-4 p-6 text-sm text-fog-300">
             <div>
               <p className="mb-1 text-base font-semibold text-fog-100">{title} isn’t connected to anything yet.</p>
-              <p>Add your Plex, Jellyfin, Radarr, Sonarr or Seerr details in Settings, or turn on demo data to preview the layout.</p>
+              <p>Add your Plex, Jellyfin, Radarr, Sonarr or Seerr details in Settings to bring the dashboard to life.</p>
             </div>
             <button type="button" className="btn-primary" onClick={() => navigate('setup')}>
               Open setup
@@ -200,7 +200,7 @@ export default function App() {
                   <StreamsPanel streams={activeStreams} featuredId={featured?.id ?? null} sources={sources} onViewAll={() => navigate('streams')} />
                 </div>
               )}
-              {hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} />}
+              {hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} limit={config?.recentLimit ?? 15} />}
               {calendarView}
               {requestsView(false)}
             </>

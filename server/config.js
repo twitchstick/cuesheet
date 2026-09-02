@@ -8,8 +8,12 @@ const num = (key, fallback) => {
   const n = Number(env(key, String(fallback)));
   return Number.isFinite(n) && n > 0 ? n : fallback;
 };
-const bool = (v) => ['1', 'true', 'yes', 'on'].includes(String(v ?? '').trim().toLowerCase());
 const stripSlash = (url) => String(url ?? '').trim().replace(/\/+$/, '');
+
+/** The app's name is fixed — it is the product, not a preference. */
+export const APP_TITLE = 'Cuesheet';
+const DEFAULT_RECENT_LIMIT = 15;
+const RECENT_LIMIT_RANGE = [3, 40];
 
 export const SERVICES = ['plex', 'jellyfin', 'radarr', 'sonarr', 'seerr'];
 /** Name of the credential field for each service. */
@@ -23,10 +27,9 @@ export const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 function envDefaults() {
   return {
     general: {
-      title: env('APP_TITLE', 'Cuesheet'),
       serverName: env('SERVER_NAME', 'Apollo Media'),
       userName: env('USER_NAME'),
-      demo: bool(env('DEMO_MODE')),
+      recentLimit: num('RECENT_LIMIT', DEFAULT_RECENT_LIMIT),
       adminPasswordHash: '',
       hideViewers: true,
     },
@@ -57,14 +60,13 @@ export const config = {
   port: num('PORT', 3000),
   timeZone: env('TZ') || Intl.DateTimeFormat().resolvedOptions().timeZone,
   refreshSeconds: num('REFRESH_SECONDS', 15),
-  recentLimit: num('RECENT_LIMIT', 18),
   adminPassword: env('ADMIN_PASSWORD'),
   settingsFile: SETTINGS_FILE,
+  title: APP_TITLE,
   // Filled in by rebuild():
-  title: '',
   serverName: '',
   userName: '',
-  demo: false,
+  recentLimit: DEFAULT_RECENT_LIMIT,
   adminPasswordHash: '',
   hideViewers: true,
   authSecret: '',
@@ -92,12 +94,18 @@ function merged() {
   return out;
 }
 
+// Declared as a function so rebuild() can use it during module load.
+function clampRecentLimit(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_RECENT_LIMIT;
+  return Math.min(RECENT_LIMIT_RANGE[1], Math.max(RECENT_LIMIT_RANGE[0], Math.round(n)));
+}
+
 function rebuild() {
   const m = merged();
-  config.title = String(m.general.title || 'Cuesheet');
   config.serverName = String(m.general.serverName ?? '');
   config.userName = String(m.general.userName ?? '');
-  config.demo = Boolean(m.general.demo);
+  config.recentLimit = clampRecentLimit(m.general.recentLimit);
   config.adminPasswordHash = String(m.general.adminPasswordHash ?? '');
   config.hideViewers = m.general.hideViewers !== false;
   config.authSecret = String(m.auth.secret ?? '');
@@ -115,10 +123,7 @@ function rebuild() {
 }
 rebuild();
 
-export const enabledServices = () =>
-  config.demo
-    ? { plex: true, jellyfin: true, radarr: true, sonarr: true, seerr: true }
-    : Object.fromEntries(SERVICES.map((s) => [s, config[s].enabled]));
+export const enabledServices = () => Object.fromEntries(SERVICES.map((s) => [s, config[s].enabled]));
 
 export const anyServiceConfigured = () => SERVICES.some((s) => config[s].enabled);
 
@@ -232,7 +237,7 @@ export const publicConfig = () => ({
   title: config.title,
   serverName: config.serverName,
   userName: config.userName,
-  demo: config.demo,
+  recentLimit: config.recentLimit,
   timeZone: config.timeZone,
   refreshSeconds: config.refreshSeconds,
   services: enabledServices(),
@@ -244,10 +249,9 @@ export const publicConfig = () => ({
 export function getSettings() {
   const out = {
     general: {
-      title: config.title,
       serverName: config.serverName,
       userName: config.userName,
-      demo: config.demo,
+      recentLimit: config.recentLimit,
       adminPasswordSet: isProtected(),
       adminPasswordFromEnv: Boolean(config.adminPassword),
       hideViewers: config.hideViewers,
@@ -297,10 +301,15 @@ export function saveSettings(patch) {
   if (patch.general && typeof patch.general === 'object') {
     next.general = { ...(next.general ?? {}) };
     const g = patch.general;
-    if (str(g.title) !== undefined) next.general.title = str(g.title, 60) || 'Cuesheet';
     if (str(g.serverName) !== undefined) next.general.serverName = str(g.serverName, 60);
     if (str(g.userName) !== undefined) next.general.userName = str(g.userName, 60);
-    if (typeof g.demo === 'boolean') next.general.demo = g.demo;
+    if (g.recentLimit !== undefined) {
+      const n = Number(g.recentLimit);
+      if (!Number.isFinite(n) || n < RECENT_LIMIT_RANGE[0] || n > RECENT_LIMIT_RANGE[1]) {
+        throw new SettingsError(`Recently added count must be between ${RECENT_LIMIT_RANGE[0]} and ${RECENT_LIMIT_RANGE[1]}`);
+      }
+      next.general.recentLimit = Math.round(n);
+    }
     if (typeof g.hideViewers === 'boolean') next.general.hideViewers = g.hideViewers;
     if (typeof g.adminPassword === 'string' && g.adminPassword.trim()) {
       if (g.adminPassword.trim().length < 8) throw new SettingsError('Admin password must be at least 8 characters');

@@ -5,13 +5,12 @@ interface Props {
   title: string;
   serverName: string;
   greeting: string;
-  demo: boolean;
   canRequest: boolean;
   onSearch: () => void;
   onRequest: () => void;
 }
 
-export default function TopBar({ title, serverName, greeting, demo, canRequest, onSearch, onRequest }: Props) {
+export default function TopBar({ title, serverName, greeting, canRequest, onSearch, onRequest }: Props) {
   return (
     <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <div className="flex items-center gap-4">
@@ -24,11 +23,6 @@ export default function TopBar({ title, serverName, greeting, demo, canRequest, 
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {demo && (
-          <span className="whitespace-nowrap rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-300" title="Showing sample data. Unset DEMO_MODE to connect your services.">
-            Demo data
-          </span>
-        )}
         {canRequest && (
           <>
             <button type="button" className="btn-ghost !px-2.5 sm:!px-3.5" onClick={onSearch} aria-label="Search">

@@ -5,7 +5,7 @@ export interface AppConfig {
   title: string;
   serverName: string;
   userName: string;
-  demo: boolean;
+  recentLimit: number;
   timeZone: string;
   refreshSeconds: number;
   services: Record<ServiceName, boolean>;
@@ -156,10 +156,9 @@ export interface ServiceSettings {
 
 export interface Settings {
   general: {
-    title: string;
     serverName: string;
     userName: string;
-    demo: boolean;
+    recentLimit: number;
     adminPasswordSet: boolean;
     adminPasswordFromEnv: boolean;
     hideViewers: boolean;

@@ -19,8 +19,10 @@ next release.
 - Service keys live in `settings.json` (mode `0600`) inside the config volume
   and are never returned to the browser — the settings API reports only whether
   a key is set.
-- Poster art is proxied so the browser never holds a credential, and the proxy
-  refuses to return anything that is not a bitmap.
+- Poster art from your media servers is proxied so the browser never holds a
+  credential, and the proxy refuses to return anything that is not a bitmap.
+  Artwork for request results loads from TMDB in the browser, the same as
+  Overseerr does it.
 - The admin password is stored as a scrypt hash. Repeated failures from one
   address pause sign-in.
 - Sessions are HMAC-signed tokens carrying identity only, never permissions,

@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function Section({ title, subtitle, action, errors, children }: Props) {
-  const errorEntries = errors ? Object.entries(errors).filter(([k]) => k !== 'demo') : [];
+  const errorEntries = errors ? Object.entries(errors) : [];
   return (
     <section className="animate-rise">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">

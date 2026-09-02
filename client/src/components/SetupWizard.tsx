@@ -20,30 +20,30 @@ type Draft = { general: Settings['general'] & { adminPassword: string; clearAdmi
 
 const SERVICE_META: Record<
   ServiceName,
-  { label: string; blurb: string; urlHint: string; secretLabel: string; secretHelp: string; userLabel?: string; userHelp?: string }
+  { label: string; blurb: string; urlExample: string; secretLabel: string; secretHelp: string; userLabel?: string; userHelp?: string }
 > = {
   plex: {
     label: 'Plex',
     blurb: 'Now playing and recently added',
-    urlHint: 'http://192.168.1.10:32400',
+    urlExample: 'http://192.168.1.10:32400',
     secretLabel: 'Plex token',
     secretHelp: 'Plex Web → any item → ⋯ → Get Info → View XML, then copy X-Plex-Token from the address bar.',
   },
   jellyfin: {
     label: 'Jellyfin',
     blurb: 'Now playing and recently added',
-    urlHint: 'http://192.168.1.10:8096',
+    urlExample: 'http://192.168.1.10:8096',
     secretLabel: 'API key',
     secretHelp: 'Jellyfin → Dashboard → API Keys → +',
     userLabel: 'Library user (optional)',
     userHelp: 'Recently Added uses this user’s view, grouped by series.',
   },
-  radarr: { label: 'Radarr', blurb: 'Movie releases on the calendar', urlHint: 'http://192.168.1.10:7878', secretLabel: 'API key', secretHelp: 'Radarr → Settings → General → Security → API Key' },
-  sonarr: { label: 'Sonarr', blurb: 'Episode air dates on the calendar', urlHint: 'http://192.168.1.10:8989', secretLabel: 'API key', secretHelp: 'Sonarr → Settings → General → Security → API Key' },
+  radarr: { label: 'Radarr', blurb: 'Movie releases on the calendar', urlExample: 'http://192.168.1.10:7878', secretLabel: 'API key', secretHelp: 'Radarr → Settings → General → Security → API Key' },
+  sonarr: { label: 'Sonarr', blurb: 'Episode air dates on the calendar', urlExample: 'http://192.168.1.10:8989', secretLabel: 'API key', secretHelp: 'Sonarr → Settings → General → Security → API Key' },
   seerr: {
     label: 'Seerr',
     blurb: 'Search and request through Overseerr or Jellyseerr',
-    urlHint: 'http://192.168.1.10:5055',
+    urlExample: 'http://192.168.1.10:5055',
     secretLabel: 'API key',
     secretHelp: 'Overseerr / Jellyseerr → Settings → General → API Key',
     userLabel: 'Request as (optional)',
@@ -239,7 +239,7 @@ export default function SetupWizard({ firstRun, locked, onSaved, onSignedIn, onC
           {current.id === 'welcome' && (
             <div className="flex flex-col gap-5">
               <div>
-                <h3 className="text-lg font-bold">Let’s get {draft.general.title || 'Cuesheet'} set up</h3>
+                <h3 className="text-lg font-bold">Let’s get Cuesheet set up</h3>
                 <p className="mt-1 text-sm text-fog-500">
                   Every service is optional. Fill in the ones you run, test each connection, and save. Keys are stored on the server and never sent back to the browser.
                 </p>
@@ -251,17 +251,17 @@ export default function SetupWizard({ firstRun, locked, onSaved, onSignedIn, onC
                 <Field label="Server name" hint="Small label above the greeting">
                   <input className={inputCls} value={draft.general.serverName} onChange={(e) => setDraft({ ...draft, general: { ...draft.general, serverName: e.target.value } })} placeholder="Apollo Media" />
                 </Field>
-                <Field label="App title" hint="Wordmark in the sidebar">
-                  <input className={inputCls} value={draft.general.title} onChange={(e) => setDraft({ ...draft, general: { ...draft.general, title: e.target.value } })} placeholder="Cuesheet" />
+                <Field label="Recently added items" hint="How many posters the row holds, 3 to 40. Scroll sideways to reach the rest.">
+                  <input
+                    type="number"
+                    min={3}
+                    max={40}
+                    className={inputCls}
+                    value={draft.general.recentLimit}
+                    onChange={(e) => setDraft({ ...draft, general: { ...draft.general, recentLimit: Number(e.target.value) } })}
+                  />
                 </Field>
               </div>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-night-700/60 p-4">
-                <input type="checkbox" className="mt-0.5 accent-accent-500" checked={draft.general.demo} onChange={(e) => setDraft({ ...draft, general: { ...draft.general, demo: e.target.checked } })} />
-                <span>
-                  <span className="block text-sm font-medium">Show demo data</span>
-                  <span className="block text-xs text-fog-500">Fills the dashboard with sample streams, titles and requests. Turn off once your services are connected.</span>
-                </span>
-              </label>
 
               <div className="rounded-xl border border-line bg-night-700/60 p-4">
                 <p className="text-sm font-medium">Admin access</p>
@@ -352,14 +352,14 @@ export default function SetupWizard({ firstRun, locked, onSaved, onSignedIn, onC
                   </p>
                 </li>
                 <li className="flex items-center gap-3 p-3">
-                  <StateDot state={draft.general.demo ? 'ok' : 'off'} />
+                  <StateDot state="ok" />
                   <p className="text-sm">
-                    Demo data <span className="text-fog-500">{draft.general.demo ? 'on' : 'off'}</span>
+                    Recently added <span className="text-fog-500">{draft.general.recentLimit} items</span>
                   </p>
                 </li>
               </ul>
-              {summary.every((s) => s.state === 'off') && !draft.general.demo && (
-                <p className="text-xs text-amber-300">Nothing is configured yet — the dashboard will stay empty until a service is added or demo data is turned on.</p>
+              {summary.every((s) => s.state === 'off') && (
+                <p className="text-xs text-amber-300">Nothing is configured yet — the dashboard will stay empty until a service is added.</p>
               )}
             </div>
           )}
@@ -399,7 +399,7 @@ function Shell({ firstRun, onCancel, locked, children }: { firstRun: boolean; on
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">{firstRun ? 'Setup' : 'Settings'}</h2>
-          <p className="mt-0.5 text-sm text-fog-500">{firstRun ? 'Connect your services to bring the dashboard to life' : 'Connections, names and demo data'}</p>
+          <p className="mt-0.5 text-sm text-fog-500">{firstRun ? 'Connect your services to bring the dashboard to life' : 'Connections, names and who can sign in'}</p>
         </div>
         <div className="flex items-center gap-2">
           {locked && (
@@ -477,8 +477,8 @@ function ServiceCard({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Server URL">
-          <input className={inputCls} value={draft.url} onChange={(e) => onChange({ url: e.target.value })} placeholder={meta.urlHint} inputMode="url" autoComplete="off" />
+        <Field label="Server URL" hint={`Example: ${meta.urlExample}`}>
+          <input className={inputCls} value={draft.url} onChange={(e) => onChange({ url: e.target.value })} placeholder="" inputMode="url" autoComplete="off" />
         </Field>
         <Field label={meta.secretLabel} hint={meta.secretHelp}>
           <div className="relative">

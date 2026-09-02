@@ -5,6 +5,25 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [1.1.0] — 2026-09-02
+
+### Changed
+
+- **Services are configured inside Cuesheet only.** The Unraid template no
+  longer carries service URLs and keys, leaving just the port, config folder,
+  timezone, admin password and user ids. The environment variables still work
+  for docker compose.
+- **Recently added scrolls.** The row holds 15 posters by default and scrolls
+  sideways, with arrows on wider screens. The count is a setting on the first
+  step of the wizard, anywhere from 3 to 40.
+- **The app's name is fixed.** The title field is gone from setup, along with
+  the `APP_TITLE` variable.
+
+### Removed
+
+- **Demo mode**, with its setup checkbox, sample-data module, `DEMO_MODE`
+  variable and the endpoint that generated placeholder artwork.
+
 ## [1.0.0] — 2026-09-02
 
 First release.
@@ -56,4 +75,5 @@ First release.
 - Responses carry a content security policy, `nosniff`, `X-Frame-Options` and
   `Referrer-Policy`.
 
+[1.1.0]: https://github.com/twitchstick/cuesheet/releases/tag/v1.1.0
 [1.0.0]: https://github.com/twitchstick/cuesheet/releases/tag/v1.0.0

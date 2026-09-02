@@ -19,20 +19,20 @@ something new. It runs in Docker, sets itself up from a wizard in the browser,
 and keeps every API key on the server.
 
 - **Now Playing** – active Plex and/or Jellyfin streams with poster, user, player, progress, direct/transcode and resolution.
-- **Recently Added** – a poster row merged from Plex and Jellyfin, newest first.
+- **Recently Added** – a scrolling poster row merged from Plex and Jellyfin, newest first, as long as you like.
 - **This Week** – a 7-day calendar of Radarr movie releases (cinema / digital / physical) and Sonarr episode air dates, with a check mark on anything already downloaded. Step forward/back a week at a time.
 - **Requests** – search and request movies or shows through Overseerr/Jellyseerr, pick seasons for TV, see what's trending, and a list of recent requests with their status.
 - **Sign-in and admins** – people sign in with Plex, Jellyfin or a shared password. You choose who is an admin, and everyone else can be kept from seeing who is watching.
 
-Every service is optional: configure what you have and the rest of the page simply doesn't render. All API keys stay inside the container; the browser only ever talks to Cuesheet, and posters are proxied through it.
+Every service is optional: configure what you have and the rest of the page simply doesn't render. All API keys stay inside the container, and artwork from your own servers is proxied through Cuesheet so the browser never holds a credential. Request results are the one exception: their artwork comes straight from TMDB, as it does in Overseerr.
 
 ![Cuesheet](docs/screenshot.png)
 
 ## Setup wizard
 
-On first run the app opens a setup wizard: enter each service's URL and key, hit *Test connection* to confirm it (Jellyfin and Seerr also let you pick a user from a list), and save. Settings are written to `settings.json` in the data directory (`/config` in the container) and override any environment variables. Reopen it any time from *Settings* in the sidebar.
+Everything about your services is configured inside Cuesheet, not on the container. On first run the app opens a setup wizard: enter each service's URL and key, hit *Test connection* to confirm it (Jellyfin and Seerr also let you pick a user from a list), and save. Settings are written to `settings.json` in the data directory (`/config` in the container). Reopen it any time from *Settings* in the sidebar.
 
-Turn on *Show demo data* (or set `DEMO_MODE=true`) to see the whole dashboard populated with sample data before connecting anything. *Your name* personalises the greeting and *Server name* is the small label above it.
+The first step also sets *Your name* for the greeting, *Server name* for the small label above it, and how many posters the *Recently added* row holds.
 
 ## Who sees what
 
@@ -60,7 +60,7 @@ With *Hide who is watching from non-admins* on (the default), everyone who isn't
 
 1. Copy `unraid/cuesheet.xml` to `/boot/config/plugins/dockerMan/templates-user/` on Apollo (via the flash share or `scp`).
 2. Docker tab → **Add Container** → pick **Cuesheet** from the *Template* dropdown.
-3. Leave the *Config Folder* at `/mnt/user/appdata/cuesheet` and optionally set an *Admin Password*. The service URLs and keys are under *Show more settings* but you don't need them — the wizard covers it.
+3. Leave the *Config Folder* at `/mnt/user/appdata/cuesheet` and optionally set an *Admin Password*. There is nothing else to fill in — your services are added inside the app.
 4. Apply. Open `http://apollo:3000` and follow the setup wizard (see [Credentials](#credentials) for where each key lives).
 
 The template pulls `ghcr.io/twitchstick/cuesheet:latest`, which is built automatically by the GitHub Actions workflow in this repo on every push to `main` (and tagged releases like `v1.0.0`). If the package is private on GHCR, either make it public in the package settings or log in to GHCR on Apollo first.
@@ -112,9 +112,11 @@ an update.
 | `SEERR_API_KEY` | Overseerr/Jellyseerr → Settings → General → API Key |
 | `SEERR_USER_ID` (optional) | Requests are created as the API key's owner unless this is set to another Seerr user id. |
 
+These names are the environment variables, which exist for docker compose users. On Unraid you enter the same values in the setup wizard instead.
+
 Use LAN addresses on Apollo (for example `http://192.168.1.10:32400`), or `http://<container-name>:<port>` if the containers share a custom Docker network.
 
-All environment variables are listed in `.env.example`. They are optional once the wizard has been used; a value saved in the wizard wins over the matching variable.
+All environment variables are listed in `.env.example`. They are optional once the wizard has been used; a value saved in the wizard wins over the matching variable. The app's name is fixed and not configurable.
 
 The container starts as root only to make `/config` owned by `PUID:PGID` (defaults `99:100`, Unraid's `nobody:users`), then drops to that user.
 

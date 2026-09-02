@@ -35,7 +35,6 @@ import * as jellyfin from './services/jellyfin.js';
 import * as radarr from './services/radarr.js';
 import * as sonarr from './services/sonarr.js';
 import * as seerr from './services/seerr.js';
-import * as demo from './demo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -254,7 +253,7 @@ api.post('/people/sign-out-everyone', requireAdmin, (req, res) => {
 // ---- Setup wizard / settings ----
 api.get('/setup/status', (req, res) => {
   const admin = isAdmin(req);
-  res.json({ needsSetup: !anyServiceConfigured() && !config.demo, locked: isProtected() && !admin, settingsFile: admin ? config.settingsFile : '' });
+  res.json({ needsSetup: !anyServiceConfigured(), locked: isProtected() && !admin, settingsFile: admin ? config.settingsFile : '' });
 });
 
 api.get('/settings', requireAdmin, (_req, res) => res.json(getSettings()));
@@ -316,7 +315,6 @@ const redactStreams = (result, identity) => ({
 api.get('/streams', async (req, res, next) => {
   try {
     const tasks = [];
-    if (config.demo) tasks.push(['demo', async () => demo.streams()]);
     if (config.plex.enabled) tasks.push(['plex', () => plex.sessions(config.plex)]);
     if (config.jellyfin.enabled) tasks.push(['jellyfin', () => jellyfin.sessions(config.jellyfin)]);
     const result = await cached('streams', 5_000, () => gather(tasks));
@@ -328,9 +326,9 @@ api.get('/streams', async (req, res, next) => {
 
 api.get('/recent', async (_req, res, next) => {
   try {
-    const limit = config.recentLimit;
+    // Fetch more than the row shows so the movies/series filters still fill it.
+    const limit = Math.min(config.recentLimit * 2, 40);
     const tasks = [];
-    if (config.demo) tasks.push(['demo', async () => demo.recent()]);
     if (config.plex.enabled) tasks.push(['plex', () => plex.recentlyAdded(config.plex, limit)]);
     if (config.jellyfin.enabled) tasks.push(['jellyfin', () => jellyfin.recentlyAdded(config.jellyfin, limit)]);
     const result = await cached('recent', 2 * 60_000, async () => {
@@ -353,7 +351,6 @@ api.get('/calendar', async (req, res, next) => {
       return res.status(400).json({ error: 'Calendar range must be 1–31 days' });
     }
     const tasks = [];
-    if (config.demo) tasks.push(['demo', async () => demo.calendar(start, end, config.timeZone)]);
     if (config.radarr.enabled) tasks.push(['radarr', () => radarr.calendar(config.radarr, start, end)]);
     if (config.sonarr.enabled) tasks.push(['sonarr', () => sonarr.calendar(config.sonarr, start, end, config.timeZone)]);
     const result = await cached(`calendar:${start}:${end}`, 10 * 60_000, async () => {
@@ -368,22 +365,13 @@ api.get('/calendar', async (req, res, next) => {
 });
 
 const requireSeerr = (_req, res, next) => {
-  if (!config.seerr.enabled && !config.demo) return res.status(404).json({ error: 'Seerr is not configured' });
+  if (!config.seerr.enabled) return res.status(404).json({ error: 'Seerr is not configured' });
   next();
-};
-// In demo mode the request features are answered from fixtures.
-const seerrApi = () => (config.demo && !config.seerr.enabled ? demoSeerr : seerr);
-const demoSeerr = {
-  recentRequests: async () => demo.recentRequests(),
-  trending: async () => demo.trending(),
-  search: async (_cfg, q) => demo.search(q),
-  details: async (_cfg, type, id) => demo.details(type, id),
-  createRequest: async (_cfg, body) => demo.createRequest(body),
 };
 
 api.get('/requests', requireSeerr, async (_req, res, next) => {
   try {
-    const items = await cached('requests', 30_000, () => seerrApi().recentRequests(config.seerr, 12));
+    const items = await cached('requests', 30_000, () => seerr.recentRequests(config.seerr, 12));
     res.json({ items });
   } catch (err) {
     next(err);
@@ -392,7 +380,7 @@ api.get('/requests', requireSeerr, async (_req, res, next) => {
 
 api.get('/trending', requireSeerr, async (_req, res, next) => {
   try {
-    const items = await cached('trending', 60 * 60_000, () => seerrApi().trending(config.seerr));
+    const items = await cached('trending', 60 * 60_000, () => seerr.trending(config.seerr));
     res.json({ items: items.slice(0, 12) });
   } catch (err) {
     next(err);
@@ -403,7 +391,7 @@ api.get('/search', requireSeerr, async (req, res, next) => {
   try {
     const q = String(req.query.q ?? '').trim();
     if (q.length < 2) return res.json({ items: [] });
-    const items = await cached(`search:${q.toLowerCase()}`, 60_000, () => seerrApi().search(config.seerr, q));
+    const items = await cached(`search:${q.toLowerCase()}`, 60_000, () => seerr.search(config.seerr, q));
     res.json({ items: items.slice(0, 18) });
   } catch (err) {
     next(err);
@@ -414,7 +402,7 @@ api.get('/media/:type/:tmdbId', requireSeerr, async (req, res, next) => {
   try {
     const { type, tmdbId } = req.params;
     if (!['movie', 'tv'].includes(type) || !/^\d+$/.test(tmdbId)) return res.status(400).json({ error: 'Bad media reference' });
-    res.json(await seerrApi().details(config.seerr, type, Number(tmdbId)));
+    res.json(await seerr.details(config.seerr, type, Number(tmdbId)));
   } catch (err) {
     next(err);
   }
@@ -427,7 +415,7 @@ api.post('/request', requireSeerr, async (req, res, next) => {
       return res.status(400).json({ error: 'mediaType must be movie|tv and tmdbId a positive integer' });
     }
     const cleanSeasons = Array.isArray(seasons) ? seasons.filter((n) => Number.isInteger(n) && n > 0) : undefined;
-    const created = await seerrApi().createRequest(config.seerr, { mediaType, tmdbId, seasons: cleanSeasons });
+    const created = await seerr.createRequest(config.seerr, { mediaType, tmdbId, seasons: cleanSeasons });
     invalidate('requests');
     invalidate('search:');
     invalidate('trending');
@@ -450,12 +438,6 @@ const IMAGE_SOURCES = {
 api.get('/image', async (req, res) => {
   const source = String(req.query.s ?? '');
   const ref = String(req.query.p ?? '');
-  if (source === 'demo') {
-    if (!config.demo || !/^[a-z0-9-]{1,32}$/.test(ref)) return res.status(404).end();
-    res.set('Content-Type', 'image/svg+xml');
-    res.set('Cache-Control', 'public, max-age=86400');
-    return res.send(demo.image(ref, { title: String(req.query.t ?? '').slice(0, 40), subtitle: String(req.query.u ?? '').slice(0, 40), kind: req.query.kind === 'backdrop' ? 'backdrop' : 'poster' }));
-  }
   const build = IMAGE_SOURCES[source];
   if (!build || !ref || !config[source]?.enabled) return res.status(404).end();
   const clamp = (v, d, max) => Math.min(max, Math.max(50, Number(v) || d));
@@ -516,7 +498,6 @@ app.listen(config.port, () => {
     .filter(([, on]) => on)
     .map(([name]) => name);
   console.log(`${config.title} listening on http://0.0.0.0:${config.port} (tz ${config.timeZone})`);
-  if (config.demo) console.log('Demo mode is ON — showing sample data (unset DEMO_MODE to use real services)');
-  else console.log(services.length ? `Connected services: ${services.join(', ')}` : 'No services configured yet — open the web UI to run the setup wizard.');
+  console.log(services.length ? `Connected services: ${services.join(', ')}` : 'No services configured yet — open the web UI to run the setup wizard.');
   console.log(`Settings file: ${config.settingsFile}${config.adminPassword ? ' (settings locked with ADMIN_PASSWORD)' : ''}`);
 });
