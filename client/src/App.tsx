@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import RecentlyAdded from './components/RecentlyAdded';
 import DownloadQueue from './components/DownloadQueue';
+import QuickLinks from './components/QuickLinks';
 import SetupWizard from './components/SetupWizard';
 import Requests from './components/Requests';
 import Sidebar, { MobileNav, ServicesCard, type ServiceHealth } from './components/Sidebar';
@@ -102,6 +103,8 @@ export default function App() {
 
   const queue = usePoll(api.queue, 20_000, hasQueue);
   const requests = usePoll(api.requests, 60_000, hasSeerr);
+  // Rarely changes, so no live polling — the editor refreshes it after a save.
+  const links = usePoll(api.links, 30 * 60_000, true);
 
   // Sidebar service health: green when the last call succeeded, amber when it errored.
   const health = useMemo<ServiceHealth[]>(() => {
@@ -205,6 +208,7 @@ export default function App() {
         <div className="flex flex-col gap-10">
           {view === 'overview' && (
             <>
+              <QuickLinks items={links.data?.items ?? null} loading={links.loading} onChange={links.refresh} notify={notify} />
               {hasMediaServer && <StreamGrid streams={streams.data?.items ?? null} errors={streamErrors} loading={streams.loading} onSelect={openStream} />}
               {hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} limit={config?.recentLimit ?? 15} onSelect={openRecent} />}
               {weekView}

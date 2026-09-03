@@ -66,6 +66,7 @@ export const config = {
   radarr: {},
   sonarr: {},
   seerr: {},
+  links: [],
 };
 
 /** Saved settings win over environment variables, field by field. */
@@ -93,6 +94,17 @@ function rebuild() {
     for (const f of EXTRA_FIELDS[s] ?? []) fields[f] = String(m[s][f] ?? '').trim();
     config[s] = { ...fields, enabled: Boolean(fields.url && fields[SECRET_FIELD[s]]) };
   }
+  config.links = (Array.isArray(saved.links) ? saved.links : [])
+    .map((link) => {
+      try {
+        return sanitizeLink(link);
+      } catch {
+        // A hand-edited settings.json shouldn't be able to stop the app
+        // from starting — drop the one bad entry rather than crash.
+        return null;
+      }
+    })
+    .filter(Boolean);
 }
 rebuild();
 
@@ -156,6 +168,42 @@ function cleanUrl(value, label) {
 
 const LABELS = { plex: 'Plex', jellyfin: 'Jellyfin', radarr: 'Radarr', sonarr: 'Sonarr', seerr: 'Seerr' };
 const str = (v, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : undefined);
+
+/**
+ * Quick links: arbitrary bookmarks to anything on the network, not just the
+ * five services above. The browser navigates to these directly — Cuesheet's
+ * server never fetches them — so validation only needs to rule out a
+ * malformed or unsafe href (a stray javascript: URI, say), not check that
+ * the address is reachable from the server.
+ */
+export const LINK_ICONS = ['link', 'server', 'shield', 'activity', 'hard-drive', 'box', 'download', 'terminal', 'globe'];
+const MAX_LINKS = 24;
+
+function sanitizeLink(raw) {
+  if (!raw || typeof raw !== 'object') throw new SettingsError('Expected a link object');
+  const label = str(raw.label, 40);
+  if (!label) throw new SettingsError('Every link needs a name');
+  const url = cleanUrl(str(raw.url, 300) ?? '', label);
+  const icon = LINK_ICONS.includes(raw.icon) ? raw.icon : null;
+  const id = str(raw.id, 64) || crypto.randomUUID();
+  return { id, label, url, icon };
+}
+
+/** Replace the whole link list and persist it. */
+export function saveLinks(list) {
+  if (!Array.isArray(list)) throw new SettingsError('Expected a list of links');
+  if (list.length > MAX_LINKS) throw new SettingsError(`No more than ${MAX_LINKS} links`);
+  const next = list.map(sanitizeLink);
+  const seen = new Set();
+  for (const link of next) {
+    if (seen.has(link.id)) throw new SettingsError('Link ids must be unique');
+    seen.add(link.id);
+  }
+  writeSettingsFile({ ...saved, links: next });
+  saved = { ...saved, links: next };
+  config.links = next;
+  return next;
+}
 
 /**
  * Apply a settings patch from the wizard and persist it.

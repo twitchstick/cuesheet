@@ -5,6 +5,20 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.5.0] — 2026-09-03
+
+### Added
+
+- **Quick links.** A row of squares at the top of the front page for
+  anything else on your network — Unraid's own UI, Portainer, Tracearr,
+  whatever else you'd otherwise keep a separate bookmark for. Add one with
+  a name and an address; the icon defaults to the site's own favicon,
+  loaded by your browser directly rather than by Cuesheet, with a small
+  curated set of icons to fall back on when a site doesn't serve one or the
+  favicon just doesn't look right at that size. Hover a tile to edit or
+  remove it. Each one opens in a new tab, the same way the Request media
+  button already does.
+
 ## [2.4.0] — 2026-09-03
 
 ### Added

@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { config, enabledServices, anyServiceConfigured, publicConfig, getSettings, saveSettings, effectiveSecret, SECRET_FIELD, SERVICES } from './config.js';
+import { config, enabledServices, anyServiceConfigured, publicConfig, getSettings, saveSettings, saveLinks, effectiveSecret, SECRET_FIELD, SERVICES } from './config.js';
 import { probes } from './services/probe.js';
 import { cached, invalidate } from './cache.js';
 import { fetchRaw, readCappedBody, assertReachableUrl, UpstreamError } from './http.js';
@@ -99,6 +99,17 @@ api.put('/settings', (req, res, next) => {
     const settings = saveSettings(req.body);
     invalidate('');
     res.json({ settings, config: publicConfig() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+api.get('/links', (_req, res) => res.json({ items: config.links }));
+
+api.put('/links', (req, res, next) => {
+  try {
+    const items = saveLinks(req.body?.items);
+    res.json({ items });
   } catch (err) {
     next(err);
   }

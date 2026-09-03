@@ -165,6 +165,15 @@ export interface DownloadItem {
   poster: string | null;
 }
 
+export type LinkIcon = 'link' | 'server' | 'shield' | 'activity' | 'hard-drive' | 'box' | 'download' | 'terminal' | 'globe';
+
+export interface QuickLink {
+  id: string;
+  label: string;
+  url: string;
+  icon: LinkIcon | null;
+}
+
 export interface Errors {
   [service: string]: string;
 }
