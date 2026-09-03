@@ -1,5 +1,5 @@
 export type ServiceName = 'plex' | 'jellyfin' | 'radarr' | 'sonarr' | 'seerr';
-export type View = 'overview' | 'recent' | 'calendar' | 'requests' | 'setup';
+export type View = 'overview' | 'recent' | 'calendar' | 'queue' | 'requests' | 'setup';
 
 export interface AppConfig {
   title: string;
@@ -144,6 +144,25 @@ export interface MediaRequest {
   requestedBy: string;
   avatar: string | null;
   createdAt: number;
+}
+
+export type DownloadStatus = 'downloading' | 'importing' | 'queued' | 'paused' | 'stalled' | 'warning' | 'failed';
+
+export interface DownloadItem {
+  id: string;
+  source: 'radarr' | 'sonarr';
+  type: 'movie' | 'episode';
+  title: string;
+  subtitle: string;
+  sizeBytes: number;
+  sizeLeftBytes: number;
+  progress: number;
+  /** Radarr/Sonarr's own countdown string, e.g. "00:45:00" or "1.02:00:00". */
+  timeleft: string | null;
+  status: DownloadStatus;
+  statusDetail: string | null;
+  downloadClient: string | null;
+  poster: string | null;
 }
 
 export interface Errors {

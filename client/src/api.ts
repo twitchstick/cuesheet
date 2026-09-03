@@ -1,4 +1,4 @@
-import type { AppConfig, CalendarItem, Errors, MediaDetail, MediaRequest, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
+import type { AppConfig, CalendarItem, DownloadItem, Errors, MediaDetail, MediaRequest, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
 
 export class ApiError extends Error {
   status: number;
@@ -35,6 +35,7 @@ export const api = {
     return get<{ start: string; end: string; today: string; items: CalendarItem[]; errors: Errors }>(`/api/calendar${qs ? `?${qs}` : ''}`);
   },
   details: (id: string) => get<MediaDetail>(`/api/details?id=${encodeURIComponent(id)}`),
+  queue: () => get<{ items: DownloadItem[]; errors: Errors }>('/api/queue'),
   requests: () => get<{ items: MediaRequest[] }>('/api/requests'),
   setupStatus: () => get<SetupStatus>('/api/setup/status'),
   settings: () => get<Settings>('/api/settings'),

@@ -1,4 +1,4 @@
-import { CalendarDays, Home, Plus, Settings, Sparkles } from 'lucide-react';
+import { CalendarDays, DownloadCloud, Home, Plus, Settings, Sparkles } from 'lucide-react';
 import { sourceLabel } from '../lib/format';
 import Logo from './Logo';
 import type { View } from '../types';
@@ -9,6 +9,7 @@ export const NAV: { view: View; label: string; icon: typeof Home }[] = [
   { view: 'overview', label: 'Overview', icon: Home },
   { view: 'recent', label: 'Recently Added', icon: Sparkles },
   { view: 'calendar', label: 'Release Calendar', icon: CalendarDays },
+  { view: 'queue', label: 'Downloads', icon: DownloadCloud },
   { view: 'requests', label: 'Requests', icon: Plus },
   { view: 'setup', label: 'Settings', icon: Settings },
 ];

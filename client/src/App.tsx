@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import RecentlyAdded from './components/RecentlyAdded';
+import DownloadQueue from './components/DownloadQueue';
 import SetupWizard from './components/SetupWizard';
 import Requests from './components/Requests';
 import Sidebar, { MobileNav, ServicesCard, type ServiceHealth } from './components/Sidebar';
@@ -13,7 +14,7 @@ import MediaDetailPanel from './components/MediaDetailPanel';
 import StreamDetailPanel from './components/StreamDetailPanel';
 import { usePoll } from './hooks/usePoll';
 import { addDays, greeting, mondayOf, toIsoDate } from './lib/format';
-import type { AppConfig, CalendarItem, RecentItem, SetupStatus, Stream, View } from './types';
+import type { AppConfig, CalendarItem, DownloadItem, RecentItem, SetupStatus, Stream, View } from './types';
 
 /** What the detail panel is showing. A stream is held by id so it stays live. */
 type Selection =
@@ -22,7 +23,7 @@ type Selection =
 
 // Now Playing leads the overview, so there is no separate streams route; an
 // old #streams link falls through to the overview.
-const VIEWS: View[] = ['overview', 'recent', 'calendar', 'requests', 'setup'];
+const VIEWS: View[] = ['overview', 'recent', 'calendar', 'queue', 'requests', 'setup'];
 const viewFromHash = (): View => {
   const v = window.location.hash.replace(/^#\/?/, '') as View;
   return VIEWS.includes(v) ? v : 'overview';
@@ -76,6 +77,9 @@ export default function App() {
   const services = config?.services;
   const hasMediaServer = Boolean(services?.plex || services?.jellyfin);
   const hasCalendar = Boolean(services?.radarr || services?.sonarr);
+  // Same services as the calendar today; kept separate since the two features
+  // are conceptually distinct and may not always share that condition.
+  const hasQueue = hasCalendar;
   const hasSeerr = Boolean(services?.seerr);
 
   const streams = usePoll(api.streams, Math.max(5, config?.refreshSeconds ?? 15) * 1000, hasMediaServer);
@@ -96,6 +100,7 @@ export default function App() {
   }, [month]);
   const monthCalendar = usePoll(monthFetcher, 15 * 60_000, hasCalendar && view === 'calendar');
 
+  const queue = usePoll(api.queue, 20_000, hasQueue);
   const requests = usePoll(api.requests, 60_000, hasSeerr);
 
   // Sidebar service health: green when the last call succeeded, amber when it errored.
@@ -109,19 +114,21 @@ export default function App() {
     }
     for (const name of ['radarr', 'sonarr'] as const) {
       if (!services[name]) continue;
-      list.push({ name, ok: calendar.data ? !calendar.data.errors?.[name] : undefined });
+      const err = calendar.data?.errors?.[name] ?? queue.data?.errors?.[name];
+      list.push({ name, ok: calendar.data || queue.data ? !err : undefined });
     }
     if (services.seerr) list.push({ name: 'seerr', ok: requests.data ? true : requests.error ? false : undefined });
     return list;
-  }, [services, streams.data, recent.data, calendar.data, requests.data, requests.error]);
+  }, [services, streams.data, recent.data, calendar.data, queue.data, requests.data, requests.error]);
 
   const available = useMemo(() => {
     const set = new Set<View>(['overview', 'setup']);
     if (hasMediaServer) set.add('recent');
     if (hasCalendar) set.add('calendar');
+    if (hasQueue) set.add('queue');
     if (hasSeerr) set.add('requests');
     return set;
-  }, [hasMediaServer, hasCalendar, hasSeerr]);
+  }, [hasMediaServer, hasCalendar, hasQueue, hasSeerr]);
 
 
   const nothingConfigured = config && !hasMediaServer && !hasCalendar && !hasSeerr && view !== 'setup';
@@ -144,6 +151,10 @@ export default function App() {
     (item: CalendarItem) => setSelected({ kind: 'media', id: item.id, title: item.title, subtitle: item.subtitle, poster: item.poster, type: item.type }),
     [],
   );
+  const openQueueItem = useCallback(
+    (item: DownloadItem) => setSelected({ kind: 'media', id: item.id, title: item.title, subtitle: item.subtitle, poster: item.poster, type: item.type }),
+    [],
+  );
   const closePanel = useCallback(() => setSelected(null), []);
 
   // The session is looked up fresh each render so the panel keeps ticking with
@@ -158,6 +169,7 @@ export default function App() {
   const serverName = config?.serverName ?? '';
 
   const streamErrors = streams.data?.errors ?? (streams.error ? { server: streams.error } : null);
+  const queueErrors = queue.data?.errors ?? (queue.error ? { server: queue.error } : null);
   const weekView = hasCalendar && (
     <WeekCalendar start={weekStart} today={calendar.data?.today ?? today} items={calendar.data?.items ?? null} errors={calendar.data?.errors ?? null} loading={calendar.loading} onShift={(days) => setWeekOffset((o) => (days === 0 ? 0 : o + days))} onSelect={openCalendar} />
   );
@@ -196,11 +208,13 @@ export default function App() {
               {hasMediaServer && <StreamGrid streams={streams.data?.items ?? null} errors={streamErrors} loading={streams.loading} onSelect={openStream} />}
               {hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} limit={config?.recentLimit ?? 15} onSelect={openRecent} />}
               {weekView}
+              {hasQueue && <DownloadQueue items={queue.data?.items ?? null} errors={queueErrors} loading={queue.loading} onSelect={openQueueItem} />}
               {requestsView(false)}
             </>
           )}
           {view === 'recent' && hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} full onSelect={openRecent} />}
           {view === 'calendar' && monthView}
+          {view === 'queue' && hasQueue && <DownloadQueue items={queue.data?.items ?? null} errors={queueErrors} loading={queue.loading} full onSelect={openQueueItem} />}
           {view === 'requests' && requestsView(true)}
           {view === 'setup' && <SetupWizard firstRun={Boolean(setup?.needsSetup)} onSaved={onSettingsSaved} onCancel={() => navigate('overview')} notify={notify} />}
           {view !== 'overview' && !available.has(view) && <div className="card p-6 text-sm text-fog-500">That section isn’t enabled. Configure the matching service to turn it on.</div>}

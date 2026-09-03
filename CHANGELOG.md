@@ -5,6 +5,20 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.4.0] — 2026-09-03
+
+### Added
+
+- **A download queue.** A new Downloads tab, and a compact block on the front
+  page, show what Radarr and Sonarr are currently fetching: title, progress,
+  size, time left and status — downloading, importing, queued, paused,
+  stalled or failed. Nothing that needs a look gets buried: failed and
+  stalled items sort to the top, everything else by soonest-to-finish. It
+  works with whatever download client Radarr or Sonarr are already using —
+  no new credentials, since the queue is read from the *arr apps you have
+  configured, not from the download client directly. Click a row for the
+  same detail panel a poster opens. Read-only, like everything else here.
+
 ## [2.3.0] — 2026-09-03
 
 ### Added

@@ -1,5 +1,5 @@
 import { fetchJson } from '../http.js';
-import { episodeCode, imageUrl, localDate, localTime } from '../util.js';
+import { episodeCode, imageUrl, localDate, localTime, queueMessage, queueProgress, queueStatus } from '../util.js';
 
 const headers = (cfg) => ({ 'X-Api-Key': cfg.apiKey });
 
@@ -68,6 +68,30 @@ export async function details(cfg, id) {
     ].filter(Boolean),
     poster: imageUrl('sonarr', ep.seriesId),
   };
+}
+
+/** What Sonarr is currently downloading or importing. */
+export async function queue(cfg) {
+  const params = new URLSearchParams({ page: '1', pageSize: '50', includeSeries: 'true', includeEpisode: 'true' });
+  const data = await fetchJson(`${cfg.url}/api/v3/queue?${params}`, { headers: headers(cfg) });
+  const records = Array.isArray(data?.records) ? data.records : [];
+  return records
+    .filter((r) => r.episodeId && r.seriesId)
+    .map((r) => ({
+      id: `sonarr-${r.episodeId}`,
+      source: 'sonarr',
+      type: 'episode',
+      title: r.series?.title ?? 'Unknown series',
+      subtitle: r.episode ? `${episodeCode(r.episode.seasonNumber, r.episode.episodeNumber)}${r.episode.title ? ` · ${r.episode.title}` : ''}` : '',
+      sizeBytes: Number(r.size) || 0,
+      sizeLeftBytes: Number(r.sizeleft) || 0,
+      progress: queueProgress(r.size, r.sizeleft),
+      timeleft: r.timeleft ?? null,
+      status: queueStatus(r),
+      statusDetail: queueMessage(r),
+      downloadClient: r.downloadClient ?? null,
+      poster: imageUrl('sonarr', r.seriesId),
+    }));
 }
 
 export function imageRequest(cfg, ref) {

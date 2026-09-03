@@ -223,6 +223,27 @@ const requireSeerr = (_req, res, next) => {
   next();
 };
 
+const QUEUE_STATUS_PRIORITY = { failed: 0, warning: 1, stalled: 2, downloading: 3, importing: 4, queued: 5, paused: 6 };
+
+api.get('/queue', async (_req, res, next) => {
+  try {
+    const tasks = [];
+    if (config.radarr.enabled) tasks.push(['radarr', () => radarr.queue(config.radarr)]);
+    if (config.sonarr.enabled) tasks.push(['sonarr', () => sonarr.queue(config.sonarr)]);
+    const result = await cached('queue', 12_000, async () => {
+      const { items, errors } = await gather(tasks);
+      // What needs a look floats to the top; within a status, soonest-done first.
+      items.sort(
+        (a, b) => (QUEUE_STATUS_PRIORITY[a.status] ?? 9) - (QUEUE_STATUS_PRIORITY[b.status] ?? 9) || a.sizeLeftBytes - b.sizeLeftBytes,
+      );
+      return { items, errors };
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 api.get('/requests', requireSeerr, async (_req, res, next) => {
   try {
     const items = await cached('requests', 30_000, () => seerr.recentRequests(config.seerr, 12));

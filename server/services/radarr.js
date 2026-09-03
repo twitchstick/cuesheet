@@ -1,5 +1,5 @@
 import { fetchJson } from '../http.js';
-import { imageUrl } from '../util.js';
+import { imageUrl, queueMessage, queueProgress, queueStatus } from '../util.js';
 
 const headers = (cfg) => ({ 'X-Api-Key': cfg.apiKey });
 
@@ -73,6 +73,30 @@ export async function details(cfg, id) {
     ].filter(Boolean),
     poster: imageUrl('radarr', movie.id),
   };
+}
+
+/** What Radarr is currently downloading or importing. */
+export async function queue(cfg) {
+  const params = new URLSearchParams({ page: '1', pageSize: '50', includeMovie: 'true', includeUnknownMovieItems: 'false' });
+  const data = await fetchJson(`${cfg.url}/api/v3/queue?${params}`, { headers: headers(cfg) });
+  const records = Array.isArray(data?.records) ? data.records : [];
+  return records
+    .filter((r) => r.movieId)
+    .map((r) => ({
+      id: `radarr-${r.movieId}`,
+      source: 'radarr',
+      type: 'movie',
+      title: r.movie?.title ?? r.title ?? 'Unknown movie',
+      subtitle: r.movie?.year ? String(r.movie.year) : '',
+      sizeBytes: Number(r.size) || 0,
+      sizeLeftBytes: Number(r.sizeleft) || 0,
+      progress: queueProgress(r.size, r.sizeleft),
+      timeleft: r.timeleft ?? null,
+      status: queueStatus(r),
+      statusDetail: queueMessage(r),
+      downloadClient: r.downloadClient ?? null,
+      poster: imageUrl('radarr', r.movieId),
+    }));
 }
 
 export function imageRequest(cfg, ref) {

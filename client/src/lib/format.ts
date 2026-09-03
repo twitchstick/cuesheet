@@ -120,3 +120,51 @@ export function tally(stream: { state: string; attention: string | null }): { cl
   if (stream.state === 'buffering') return { cls: 'bg-tally-hold', label: 'Buffering', pulse: true };
   return { cls: 'bg-tally-on', label: 'On air', pulse: true };
 }
+
+/** Bytes as a human size: 4.2 GB, 820 MB. */
+export function fileSize(bytes: number | null | undefined): string | null {
+  if (!bytes || bytes <= 0) return null;
+  const gb = bytes / 1024 ** 3;
+  if (gb >= 1) return `${gb >= 10 ? Math.round(gb) : gb.toFixed(1)} GB`;
+  const mb = bytes / 1024 ** 2;
+  return `${Math.round(mb)} MB`;
+}
+
+/** Radarr/Sonarr send time left as "HH:MM:SS" or, past a day, "D.HH:MM:SS". */
+export function timeLeftLabel(timeleft: string | null): string | null {
+  if (!timeleft) return null;
+  const m = timeleft.match(/^(?:(\d+)\.)?(\d+):(\d+):(\d+)$/);
+  if (!m) return null;
+  const days = Number(m[1] ?? 0);
+  const hours = Number(m[2]);
+  const mins = Number(m[3]);
+  if (days > 0) return `${days}d ${hours}h left`;
+  if (hours > 0) return `${hours}h ${String(mins).padStart(2, '0')}m left`;
+  if (mins > 0) return `${mins}m left`;
+  return 'almost done';
+}
+
+/**
+ * A download's tally light. Failed reuses the same red as a stream's "on
+ * air" — this is a broadcast tally, not a traffic light, so the colour
+ * means "demands attention," not "stop." Downloading gets the brand accent
+ * rather than a tally colour, since it is normal, ongoing activity.
+ */
+export function downloadTally(item: { status: string; statusDetail: string | null }): { cls: string; label: string; pulse: boolean } {
+  switch (item.status) {
+    case 'failed':
+      return { cls: 'bg-tally-on', label: item.statusDetail ?? 'Failed', pulse: false };
+    case 'warning':
+      return { cls: 'bg-tally-hold', label: item.statusDetail ?? 'Warning', pulse: false };
+    case 'stalled':
+      return { cls: 'bg-tally-hold', label: 'Stalled', pulse: false };
+    case 'paused':
+      return { cls: 'bg-tally-idle', label: 'Paused', pulse: false };
+    case 'queued':
+      return { cls: 'bg-tally-idle', label: 'Queued', pulse: false };
+    case 'importing':
+      return { cls: 'bg-accent-500', label: 'Importing', pulse: true };
+    default:
+      return { cls: 'bg-accent-500', label: 'Downloading', pulse: true };
+  }
+}
