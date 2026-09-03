@@ -24,9 +24,10 @@ and keeps every API key on the server.
 
 - **Now Playing** – the front page leads with it: every active Plex and Jellyfin stream with poster, user, player, progress, direct/transcode, resolution and bandwidth, each tinted in its server's own colour.
 - **Recently Added** – a scrolling poster row merged from Plex and Jellyfin, newest first, as long as you like.
-- **This Week** – a 7-day calendar of Radarr movie releases (cinema / digital / physical) and Sonarr episode air dates, with a check mark on anything already downloaded. Busy days scroll rather than stretching the row. Step forward/back a week at a time.
+- **Release calendar** – Radarr movie releases (cinema / digital / physical) and Sonarr episode air dates, with a check mark on anything already downloaded. The front page shows the week ahead; the Release Calendar tab shows a whole month and switches between them. Busy days scroll inside their own cell rather than stretching the row.
 - **Requests** – what the house has asked for through Overseerr or Jellyseerr and where each one stands. Requesting itself happens in Seerr: the *Request media* button opens it in a new tab.
 - **Bandwidth** – what all the streaming is costing the server, split between remote and local, with a figure on every stream.
+- **Details on click** – open any poster or release for its synopsis, runtime, genres, cast and crew; open a stream for its signal path — codecs in and out, resolution, container, subtitles, and why it is transcoding.
 
 Every service is optional: configure what you have and the rest of the page simply doesn't render. All API keys stay inside the container, and artwork from your own servers is proxied through Cuesheet so the browser never holds a credential. Request artwork is the one exception: it comes straight from TMDB, as it does in Overseerr.
 

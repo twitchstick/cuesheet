@@ -158,6 +158,42 @@ api.get('/recent', async (_req, res, next) => {
   }
 });
 
+/**
+ * Metadata for one item, behind a poster click. The id carries its own source
+ * (`plex-1234`, `sonarr-88`), so this only has to check that the source is one
+ * we know, is actually configured, and that the id is shaped the way that
+ * service expects — the services re-check the id before it reaches a URL.
+ */
+const DETAIL_SOURCES = {
+  plex: { service: plex, id: /^\d+$/ },
+  // A Jellyfin id can be a dashed GUID, so it keeps everything after the source.
+  jellyfin: { service: jellyfin, id: /^[A-Za-z0-9-]{1,64}$/, keepDashes: true },
+  // A Radarr id carries the release field too: radarr-12-digitalRelease.
+  radarr: { service: radarr, id: /^\d+$/ },
+  sonarr: { service: sonarr, id: /^\d+$/ },
+};
+
+api.get('/details', async (req, res, next) => {
+  try {
+    const raw = typeof req.query.id === 'string' ? req.query.id : '';
+    const split = raw.indexOf('-');
+    const source = split > 0 ? raw.slice(0, split) : '';
+    // hasOwn, not a bare lookup: `constructor` and `__proto__` would otherwise
+    // resolve to something inherited and truthy.
+    const entry = Object.hasOwn(DETAIL_SOURCES, source) ? DETAIL_SOURCES[source] : null;
+    if (!entry) return res.status(400).json({ error: 'Unknown item' });
+    const rest = raw.slice(split + 1);
+    const id = entry.keepDashes ? rest : rest.split('-')[0];
+    if (!entry.id.test(id)) return res.status(400).json({ error: 'Unknown item' });
+    if (!config[source]?.enabled) return res.status(404).json({ error: `${source} is not connected` });
+
+    const result = await cached(`details:${source}:${id}`, 10 * 60_000, () => entry.service.details(config[source], id));
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 api.get('/calendar', async (req, res, next) => {
   try {
     const today = localDate(new Date(), config.timeZone);

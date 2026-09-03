@@ -7,9 +7,10 @@ interface Props {
   streams: Stream[] | null;
   errors: Errors | null;
   loading: boolean;
+  onSelect?: (stream: Stream) => void;
 }
 
-export default function StreamGrid({ streams, errors, loading }: Props) {
+export default function StreamGrid({ streams, errors, loading, onSelect }: Props) {
   const count = streams?.length ?? 0;
   return (
     <Section
@@ -30,7 +31,7 @@ export default function StreamGrid({ streams, errors, loading }: Props) {
           <Summary streams={streams!} />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {streams!.map((s) => (
-              <StreamCard key={s.id} stream={s} />
+              <StreamCard key={s.id} stream={s} onSelect={onSelect} />
             ))}
           </div>
         </>
@@ -86,7 +87,7 @@ function Summary({ streams }: { streams: Stream[] }) {
   );
 }
 
-function StreamCard({ stream }: { stream: Stream }) {
+function StreamCard({ stream, onSelect }: { stream: Stream; onSelect?: (stream: Stream) => void }) {
   const theme = serviceTheme[stream.source];
   const light = tally(stream);
   const pct = Math.min(100, Math.max(0, stream.progress * 100));
@@ -95,7 +96,27 @@ function StreamCard({ stream }: { stream: Stream }) {
     .join(' · ');
 
   return (
-    <article className={`card flex gap-4 border-l-2 p-3.5 ${theme?.border ?? 'border-l-transparent'}`}>
+    <article
+      // min-w-0: a grid item defaults to min-width:auto, which would let the
+      // card grow past a narrow screen rather than letting its text truncate.
+      className={`card flex min-w-0 gap-4 border-l-2 p-3.5 text-left ${theme?.border ?? 'border-l-transparent'} ${
+        onSelect ? 'cursor-pointer transition-colors hover:bg-white/[0.035] focus-visible:bg-white/[0.035]' : ''
+      }`}
+      onClick={onSelect ? () => onSelect(stream) : undefined}
+      onKeyDown={
+        onSelect
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelect(stream);
+              }
+            }
+          : undefined
+      }
+      role={onSelect ? 'button' : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      aria-label={onSelect ? `${stream.title} — session details` : undefined}
+    >
       <Poster src={stream.poster} alt={stream.title} kind={stream.type === 'episode' ? 'tv' : 'movie'} className="w-[68px] shrink-0 shadow-poster" />
 
       <div className="flex min-w-0 flex-1 flex-col">

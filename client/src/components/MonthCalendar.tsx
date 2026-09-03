@@ -11,6 +11,7 @@ interface Props {
   errors: Errors | null;
   loading: boolean;
   onMonth: (month: string) => void;
+  onSelect?: (item: CalendarItem) => void;
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -39,7 +40,7 @@ const shiftMonth = (month: string, by: number) => {
   return toIsoDate(d);
 };
 
-export default function MonthCalendar({ month, today, items, errors, loading, onMonth }: Props) {
+export default function MonthCalendar({ month, today, items, errors, loading, onMonth, onSelect }: Props) {
   const days = useMemo(() => gridFor(month), [month]);
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarItem[]>();
@@ -105,17 +106,23 @@ export default function MonthCalendar({ month, today, items, errors, loading, on
                 {list.map((item) => {
                   const radarr = item.source === 'radarr';
                   return (
-                    <li
-                      key={item.id}
-                      title={`${item.title} · ${item.subtitle}`}
-                      className={`border-l-2 px-1.5 py-1 ${radarr ? 'border-l-live bg-live/5' : 'border-l-glow bg-glow/5'}`}
-                    >
-                      <p className="truncate text-[11px] font-semibold leading-tight">{item.title}</p>
-                      <p className="truncate font-mono text-[10px] text-fog-500">
-                        {radarr ? (item.event ?? 'Release') : item.subtitle.split(' · ')[0]}
-                        {!radarr && item.time ? ` ${formatTime24to12(item.time)}` : ''}
-                        {item.hasFile ? ' ✓' : ''}
-                      </p>
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={onSelect ? () => onSelect(item) : undefined}
+                        disabled={!onSelect}
+                        title={`${item.title} · ${item.subtitle}`}
+                        className={`block w-full border-l-2 px-1.5 py-1 text-left ${radarr ? 'border-l-live bg-live/5' : 'border-l-glow bg-glow/5'} ${
+                          onSelect ? 'transition-colors hover:bg-white/[0.06]' : ''
+                        }`}
+                      >
+                        <p className="truncate text-[11px] font-semibold leading-tight">{item.title}</p>
+                        <p className="truncate font-mono text-[10px] text-fog-500">
+                          {radarr ? (item.event ?? 'Release') : item.subtitle.split(' · ')[0]}
+                          {!radarr && item.time ? ` ${formatTime24to12(item.time)}` : ''}
+                          {item.hasFile ? ' ✓' : ''}
+                        </p>
+                      </button>
                     </li>
                   );
                 })}

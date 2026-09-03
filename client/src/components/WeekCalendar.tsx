@@ -11,9 +11,10 @@ interface Props {
   errors: Errors | null;
   loading: boolean;
   onShift: (days: number) => void;
+  onSelect?: (item: CalendarItem) => void;
 }
 
-export default function WeekCalendar({ start, today, items, errors, loading, onShift }: Props) {
+export default function WeekCalendar({ start, today, items, errors, loading, onShift, onSelect }: Props) {
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(start, i)), [start]);
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarItem[]>();
@@ -69,19 +70,25 @@ export default function WeekCalendar({ start, today, items, errors, loading, onS
                 {list.map((item) => {
                   const radarr = item.source === 'radarr';
                   return (
-                    <li
-                      key={item.id}
-                      title={`${item.title} · ${item.subtitle}${item.network ? ` · ${item.network}` : ''}`}
-                      className={`rounded-lg border px-2.5 py-2 ${radarr ? 'border-live/30 bg-live/10' : 'border-glow/30 bg-glow/10'}`}
-                    >
-                      <p className="flex items-center gap-1 text-xs font-semibold leading-tight">
-                        <span className="truncate">{item.title}</span>
-                        {item.hasFile && <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" aria-label="Downloaded" />}
-                      </p>
-                      <p className="mt-0.5 truncate text-[11px] text-fog-500">
-                        {radarr ? `${item.event ?? 'Release'} · Radarr` : `${item.subtitle.split(' · ')[0]} · Sonarr`}
-                        {!radarr && item.time ? ` · ${formatTime24to12(item.time)}` : ''}
-                      </p>
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={onSelect ? () => onSelect(item) : undefined}
+                        disabled={!onSelect}
+                        title={`${item.title} · ${item.subtitle}${item.network ? ` · ${item.network}` : ''}`}
+                        className={`block w-full rounded-lg border px-2.5 py-2 text-left ${
+                          radarr ? 'border-live/30 bg-live/10' : 'border-glow/30 bg-glow/10'
+                        } ${onSelect ? 'transition-colors hover:bg-white/[0.06]' : ''}`}
+                      >
+                        <p className="flex items-center gap-1 text-xs font-semibold leading-tight">
+                          <span className="truncate">{item.title}</span>
+                          {item.hasFile && <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" aria-label="Downloaded" />}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] text-fog-500">
+                          {radarr ? `${item.event ?? 'Release'} · Radarr` : `${item.subtitle.split(' · ')[0]} · Sonarr`}
+                          {!radarr && item.time ? ` · ${formatTime24to12(item.time)}` : ''}
+                        </p>
+                      </button>
                     </li>
                   );
                 })}

@@ -15,6 +15,8 @@ export interface AppConfig {
 
 export interface Stream {
   id: string;
+  /** The library item behind this session, for the detail lookup. */
+  itemId: string | null;
   source: 'plex' | 'jellyfin';
   type: 'movie' | 'episode';
   title: string;
@@ -35,6 +37,55 @@ export interface Stream {
   poster: string | null;
   backdrop: string | null;
   attention: string | null;
+  /** What the file is and what the server is doing to it. */
+  tech?: StreamTech | null;
+}
+
+export interface TrackTech {
+  codec: string | null;
+  profile?: string | null;
+  resolution?: string | null;
+  frameRate?: string | null;
+  bitrateKbps?: number | null;
+  channels?: string | null;
+  language?: string | null;
+  /** 'Direct play' | 'Direct stream' | 'Transcode' */
+  decision: string | null;
+  /** What it is being turned into, when transcoding. */
+  target: string | null;
+}
+
+export interface StreamTech {
+  container: string | null;
+  fileBitrateKbps: number | null;
+  video: TrackTech;
+  audio: TrackTech;
+  subtitle: string | null;
+  /** The container it is being repackaged into, when that changes. */
+  containerTarget: string | null;
+  /** Why Jellyfin is transcoding. Plex does not report a reason, so it is empty. */
+  changes: string[];
+  hardware: boolean | null;
+  throttled: boolean | null;
+}
+
+export interface MediaDetail {
+  source: ServiceName;
+  type: 'movie' | 'show' | 'season' | 'episode';
+  title: string;
+  subtitle: string;
+  year: number | null;
+  overview: string;
+  runtimeMinutes: number | null;
+  genres: string[];
+  contentRating: string | null;
+  rating: number | null;
+  ratingLabel: string;
+  studio: string | null;
+  airedOn: string | null;
+  people: { name: string; role: string }[];
+  facts: [string, string][];
+  poster: string | null;
 }
 
 export interface RecentItem {

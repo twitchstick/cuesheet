@@ -83,6 +83,38 @@ body {
     @apply relative overflow-hidden rounded-xl bg-night-700;
     aspect-ratio: 2 / 3;
   }
+
+  /* The detail drawer: rises from the bottom on a phone, slides in from the
+     right on a wider screen. */
+  .detail-panel {
+    @apply rounded-t-2xl shadow-card sm:rounded-none;
+    animation: sheet-up 180ms ease-out;
+  }
+  @screen sm {
+    .detail-panel {
+      animation: sheet-in 180ms ease-out;
+    }
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-panel {
+    animation: none;
+  }
 }
 
 .seg {

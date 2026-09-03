@@ -12,11 +12,12 @@ interface Props {
   /** How many posters the row shows. Ignored in the full-page view. */
   limit?: number;
   full?: boolean;
+  onSelect?: (item: RecentItem) => void;
 }
 
 type Filter = 'all' | 'movies' | 'series';
 
-export default function RecentlyAdded({ items, errors, loading, limit = 15, full = false }: Props) {
+export default function RecentlyAdded({ items, errors, loading, limit = 15, full = false, onSelect }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
   const visible = useMemo(() => {
     const list = (items ?? []).filter((i) => (filter === 'all' ? true : filter === 'movies' ? i.type === 'movie' : i.type !== 'movie'));
@@ -45,14 +46,14 @@ export default function RecentlyAdded({ items, errors, loading, limit = 15, full
       ) : full ? (
         <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
           {visible.map((item) => (
-            <Card key={item.id} item={item} />
+            <Card key={item.id} item={item} onSelect={onSelect} />
           ))}
         </div>
       ) : (
         <ScrollRow>
           {visible.map((item) => (
             <div key={item.id} className="w-32 shrink-0 snap-start sm:w-36 lg:w-40">
-              <Card item={item} />
+              <Card item={item} onSelect={onSelect} />
             </div>
           ))}
         </ScrollRow>
@@ -120,9 +121,9 @@ function Arrow({ side, show, onClick }: { side: 'left' | 'right'; show: boolean;
   );
 }
 
-function Card({ item }: { item: RecentItem }) {
-  return (
-    <figure className="group/card min-w-0">
+function Card({ item, onSelect }: { item: RecentItem; onSelect?: (item: RecentItem) => void }) {
+  const body = (
+    <>
       <div className="relative">
         <Poster
           src={item.poster}
@@ -132,7 +133,7 @@ function Card({ item }: { item: RecentItem }) {
         />
         <span className="absolute right-2 top-2 rounded-md bg-night-950/75 px-1.5 py-0.5 text-[10px] font-medium text-fog-300 backdrop-blur">{timeAgo(item.addedAt)}</span>
       </div>
-      <figcaption className="mt-2.5">
+      <figcaption className="mt-2.5 text-left">
         <p className="truncate text-sm font-semibold leading-tight" title={item.title}>
           {item.title}
         </p>
@@ -140,7 +141,19 @@ function Card({ item }: { item: RecentItem }) {
           {meta(item)}
         </p>
       </figcaption>
-    </figure>
+    </>
+  );
+
+  if (!onSelect) return <figure className="group/card min-w-0">{body}</figure>;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item)}
+      aria-label={`${item.title} — details`}
+      className="group/card block w-full min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+    >
+      {body}
+    </button>
   );
 }
 

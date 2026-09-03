@@ -23,6 +23,8 @@ export async function sessions(cfg) {
       const transcoding = Boolean(transcode && (transcode.videoDecision === 'transcode' || transcode.audioDecision === 'transcode'));
       return {
         id: `plex-${m.sessionKey ?? m.ratingKey}`,
+        // The library item behind the session, so the detail panel can look it up.
+        itemId: m.ratingKey ? `plex-${m.ratingKey}` : null,
         source: 'plex',
         type: m.type,
         title: isEpisode ? m.grandparentTitle : m.title,
@@ -42,6 +44,7 @@ export async function sessions(cfg) {
         poster: imageUrl('plex', isEpisode ? m.grandparentThumb || m.parentThumb || m.thumb : m.thumb),
         backdrop: imageUrl('plex', m.art || m.grandparentArt || null, { w: '1280', h: '720' }),
         attention: attentionFor(m.Player?.state, transcoding, transcode),
+        tech: techOf(m),
       };
     });
 }
@@ -94,6 +97,44 @@ export async function recentlyAdded(cfg, limit) {
     .slice(0, limit);
 }
 
+/** Full metadata for one library item, for the detail panel. */
+export async function details(cfg, ratingKey) {
+  if (!/^\d+$/.test(ratingKey)) throw new Error('Invalid Plex item id');
+  const data = await fetchJson(`${cfg.url}/library/metadata/${ratingKey}`, { headers: headers(cfg) });
+  const m = data?.MediaContainer?.Metadata?.[0];
+  if (!m) throw new Error('That item is no longer in the library');
+  const isEpisode = m.type === 'episode';
+  const names = (list, key = 'tag') => (Array.isArray(list) ? list.map((x) => x[key]).filter(Boolean) : []);
+  const media = m.Media?.[0] ?? {};
+
+  return {
+    source: 'plex',
+    type: m.type,
+    title: isEpisode ? m.grandparentTitle : m.title,
+    subtitle: isEpisode ? `${episodeCode(m.parentIndex, m.index)} · ${m.title}` : m.tagline || '',
+    year: m.year ?? m.parentYear ?? null,
+    overview: m.summary ?? '',
+    runtimeMinutes: Number(m.duration) ? Math.round(Number(m.duration) / 60000) : null,
+    genres: names(m.Genre),
+    contentRating: m.contentRating ?? null,
+    rating: Number.isFinite(Number(m.rating)) ? Math.round(Number(m.rating) * 10) / 10 : null,
+    ratingLabel: 'Critics',
+    studio: m.studio ?? null,
+    airedOn: m.originallyAvailableAt ?? null,
+    people: [
+      ...names(m.Director).map((name) => ({ name, role: 'Director' })),
+      ...names(m.Role).slice(0, 6).map((name) => ({ name, role: 'Cast' })),
+    ],
+    facts: [
+      media.videoResolution ? ['Quality', normaliseResolution(media.videoResolution) ?? String(media.videoResolution)] : null,
+      media.container ? ['Container', String(media.container).toUpperCase()] : null,
+      media.videoCodec ? ['Video', String(media.videoCodec).toUpperCase()] : null,
+      media.audioCodec ? ['Audio', String(media.audioCodec).toUpperCase()] : null,
+    ].filter(Boolean),
+    poster: imageUrl('plex', isEpisode ? m.grandparentThumb || m.parentThumb || m.thumb : m.thumb),
+  };
+}
+
 /** Resolve a Plex thumb path into a sized transcode URL + headers for the proxy. */
 export function imageRequest(cfg, ref, { width = 300, height = 450 } = {}) {
   if (!ref.startsWith('/')) throw new Error('Invalid Plex image path');
@@ -105,6 +146,69 @@ export function imageRequest(cfg, ref, { width = 300, height = 450 } = {}) {
     url: ref,
   });
   return { url: `${cfg.url}/photo/:/transcode?${params.toString()}`, headers: headers(cfg) };
+}
+
+/** Map a Plex per-stream decision onto the words the UI uses. */
+const DECISION = { directplay: 'Direct play', copy: 'Direct stream', transcode: 'Transcode' };
+
+const channelLabel = (n) => {
+  const c = Number(n);
+  if (!Number.isFinite(c) || c <= 0) return null;
+  return { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' }[c] ?? `${c}ch`;
+};
+
+const upper = (v) => (v ? String(v).toUpperCase() : null);
+
+/**
+ * The technical side of a session: what the file is, and what the server is
+ * doing to it. Everything here comes from the session payload we already
+ * fetched, so opening a stream costs no extra call to Plex.
+ */
+function techOf(m) {
+  const media = m.Media?.[0] ?? {};
+  const part = media.Part?.[0] ?? {};
+  const all = Array.isArray(part.Stream) ? part.Stream : [];
+  const video = all.find((s) => Number(s.streamType) === 1) ?? {};
+  const audio = all.find((s) => Number(s.streamType) === 2 && s.selected !== false) ?? {};
+  const subtitle = all.find((s) => Number(s.streamType) === 3 && s.selected);
+  const ts = m.TranscodeSession ?? null;
+
+  const width = Number(video.width || media.width) || null;
+  const height = Number(video.height || media.height) || null;
+  const videoDecision = video.decision ?? (ts?.videoDecision || null);
+  const audioDecision = audio.decision ?? (ts?.audioDecision || null);
+
+  return {
+    container: media.container ? String(media.container).toUpperCase() : null,
+    fileBitrateKbps: Number(media.bitrate) || null,
+    video: {
+      codec: upper(video.codec || media.videoCodec),
+      profile: video.profile ? String(video.profile) : null,
+      resolution: width && height ? `${width}×${height}` : normaliseResolution(media.videoResolution),
+      frameRate: video.frameRate ? String(video.frameRate) : null,
+      bitrateKbps: Number(video.bitrate) || null,
+      decision: DECISION[videoDecision] ?? null,
+      target: ts?.videoDecision === 'transcode' ? upper(ts.videoCodec) : null,
+    },
+    audio: {
+      codec: upper(audio.codec || media.audioCodec),
+      channels: channelLabel(audio.channels ?? media.audioChannels),
+      language: audio.language ?? null,
+      decision: DECISION[audioDecision] ?? null,
+      target: ts?.audioDecision === 'transcode' ? upper(ts.audioCodec) : null,
+    },
+    subtitle: subtitle
+      ? [subtitle.language || subtitle.displayTitle || 'Subtitle', upper(subtitle.codec), subtitle.burn ? 'burned in' : null]
+          .filter(Boolean)
+          .join(' · ')
+      : null,
+    containerTarget: ts?.container && ts.container !== media.container ? upper(ts.container) : null,
+    // Plex does not say why it is transcoding, and the video and audio rows
+    // already show what it changed, so there is nothing honest to add here.
+    changes: [],
+    hardware: ts ? Boolean(ts.transcodeHwRequested) : null,
+    throttled: ts ? Boolean(ts.throttled) : null,
+  };
 }
 
 /**

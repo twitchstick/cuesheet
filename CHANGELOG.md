@@ -5,6 +5,31 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.3.0] — 2026-09-03
+
+### Added
+
+- **Click a poster or a stream for the detail behind it.** Posters in Recently
+  added and releases in either calendar open a panel with the synopsis, runtime,
+  genres, certificate, rating, cast and crew, and what the file actually is.
+  It reads from whichever service the item came from — Plex, Jellyfin, Radarr
+  or Sonarr.
+- **Stream details show the signal path.** Clicking a session opens its
+  technical side: video and audio codecs with what they are being turned into,
+  resolution, profile, frame rate, channels, container and subtitles, plus the
+  session's player, device, bandwidth and connection. Jellyfin reports why it
+  is transcoding and those reasons are shown; Plex does not report one, so the
+  video and audio rows show what it changed instead of inventing a reason. The
+  timecodes keep running while the panel is open, and it closes itself if the
+  stream stops. The stats come from the session data already on screen, so
+  opening one costs no extra call to your server.
+
+### Fixed
+
+- **Stream cards no longer overhang a phone screen.** As grid items they could
+  grow past the viewport instead of letting their text truncate, which pushed
+  the whole page sideways by about 35px.
+
 ## [2.2.0] — 2026-09-03
 
 ### Added

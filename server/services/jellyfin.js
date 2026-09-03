@@ -20,6 +20,8 @@ export async function sessions(cfg) {
       const method = s.PlayState?.PlayMethod;
       return {
         id: `jellyfin-${s.Id}`,
+        // The library item behind the session, so the detail panel can look it up.
+        itemId: item.Id ? `jellyfin-${item.Id}` : null,
         source: 'jellyfin',
         type: isEpisode ? 'episode' : 'movie',
         title: isEpisode ? item.SeriesName : item.Name,
@@ -43,6 +45,7 @@ export async function sessions(cfg) {
         poster: posterFor(item),
         backdrop: imageUrl('jellyfin', isEpisode && item.SeriesId ? item.SeriesId : item.Id, { kind: 'backdrop' }),
         attention: null,
+        tech: techOf(s, item),
       };
     });
 }
@@ -98,6 +101,46 @@ export async function recentlyAdded(cfg, limit) {
   });
 }
 
+/** Full metadata for one library item, for the detail panel. */
+export async function details(cfg, id) {
+  if (!/^[A-Za-z0-9-]+$/.test(id)) throw new Error('Invalid Jellyfin item id');
+  const base = cfg.userId ? `${cfg.url}/Users/${encodeURIComponent(cfg.userId)}/Items/${id}` : `${cfg.url}/Items/${id}`;
+  const item = await fetchJson(base, { headers: headers(cfg) });
+  if (!item?.Id) throw new Error('That item is no longer in the library');
+  const isEpisode = item.Type === 'Episode';
+  const streams = Array.isArray(item.MediaStreams) ? item.MediaStreams : [];
+  const video = streams.find((v) => v.Type === 'Video') ?? {};
+  const audio = streams.find((a) => a.Type === 'Audio') ?? {};
+  const people = Array.isArray(item.People) ? item.People : [];
+
+  return {
+    source: 'jellyfin',
+    type: isEpisode ? 'episode' : item.Type === 'Series' ? 'show' : item.Type === 'Season' ? 'season' : 'movie',
+    title: isEpisode ? item.SeriesName ?? item.Name : item.Name,
+    subtitle: isEpisode ? `${episodeCode(item.ParentIndexNumber, item.IndexNumber)} · ${item.Name}` : item.Taglines?.[0] ?? '',
+    year: item.ProductionYear ?? null,
+    overview: item.Overview ?? '',
+    runtimeMinutes: Number(item.RunTimeTicks) ? Math.round(Number(item.RunTimeTicks) / TICKS_PER_MS / 60000) : null,
+    genres: Array.isArray(item.Genres) ? item.Genres : [],
+    contentRating: item.OfficialRating ?? null,
+    rating: Number.isFinite(Number(item.CommunityRating)) ? Math.round(Number(item.CommunityRating) * 10) / 10 : null,
+    ratingLabel: 'Community',
+    studio: item.Studios?.[0]?.Name ?? item.SeriesStudio ?? null,
+    airedOn: item.PremiereDate ? String(item.PremiereDate).slice(0, 10) : null,
+    people: [
+      ...people.filter((x) => x.Type === 'Director').map((x) => ({ name: x.Name, role: 'Director' })),
+      ...people.filter((x) => x.Type === 'Actor').slice(0, 6).map((x) => ({ name: x.Name, role: 'Cast' })),
+    ],
+    facts: [
+      video.Height ? ['Quality', video.Height >= 2000 ? '4K' : `${video.Height}p`] : null,
+      item.Container ? ['Container', String(item.Container).toUpperCase()] : null,
+      video.Codec ? ['Video', String(video.Codec).toUpperCase()] : null,
+      audio.Codec ? ['Audio', String(audio.Codec).toUpperCase()] : null,
+    ].filter(Boolean),
+    poster: posterFor(item),
+  };
+}
+
 /** Prefer the series poster for episodes so the row reads as "what show", not a still frame. */
 function posterFor(item) {
   if (item.Type === 'Episode' && item.SeriesId) {
@@ -116,6 +159,62 @@ export function imageRequest(cfg, ref, { width = 300, tag, kind } = {}) {
   const params = new URLSearchParams({ maxWidth: String(backdrop ? 1280 : width), quality: '90' });
   if (tag && !backdrop) params.set('tag', tag);
   return { url: `${cfg.url}/Items/${ref}/Images/${backdrop ? 'Backdrop' : 'Primary'}?${params}`, headers: headers(cfg) };
+}
+
+const channelLabel = (n) => {
+  const c = Number(n);
+  if (!Number.isFinite(c) || c <= 0) return null;
+  return { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' }[c] ?? `${c}ch`;
+};
+
+const upper = (v) => (v ? String(v).toUpperCase() : null);
+
+/** Turn Jellyfin's CamelCase transcode reasons into something readable. */
+const readableReason = (r) => String(r).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
+
+/**
+ * The technical side of a session. Built from the session payload we already
+ * hold, so opening a stream costs no extra call to Jellyfin.
+ */
+function techOf(session, item) {
+  const streams = Array.isArray(item.MediaStreams) ? item.MediaStreams : [];
+  const video = streams.find((s) => s.Type === 'Video') ?? {};
+  const audio = streams.find((s) => s.Type === 'Audio' && s.IsDefault) ?? streams.find((s) => s.Type === 'Audio') ?? {};
+  const subtitle = streams.find((s) => s.Type === 'Subtitle' && s.IsDefault);
+  const source = item.MediaSources?.[0] ?? {};
+  const ti = session.TranscodingInfo ?? null;
+  const method = session.PlayState?.PlayMethod ?? null;
+  const label = method === 'Transcode' ? 'Transcode' : method === 'DirectStream' ? 'Direct stream' : method === 'DirectPlay' ? 'Direct play' : null;
+
+  const bitrate = (bps) => (Number(bps) > 0 ? Math.round(Number(bps) / 1000) : null);
+
+  return {
+    container: upper(source.Container || item.Container),
+    fileBitrateKbps: bitrate(source.Bitrate || item.Bitrate),
+    video: {
+      codec: upper(video.Codec),
+      profile: video.Profile ? String(video.Profile) : null,
+      resolution: video.Width && video.Height ? `${video.Width}×${video.Height}` : null,
+      frameRate: video.RealFrameRate ? String(Math.round(Number(video.RealFrameRate) * 100) / 100) : null,
+      bitrateKbps: bitrate(video.BitRate),
+      // Jellyfin reports the method for the session as a whole, not per stream.
+      decision: ti?.IsVideoDirect === true ? 'Direct stream' : ti ? 'Transcode' : label,
+      target: ti && ti.IsVideoDirect !== true ? upper(ti.VideoCodec) : null,
+    },
+    audio: {
+      codec: upper(audio.Codec),
+      channels: channelLabel(audio.Channels),
+      language: audio.Language ?? null,
+      decision: ti?.IsAudioDirect === true ? 'Direct stream' : ti ? 'Transcode' : label,
+      target: ti && ti.IsAudioDirect !== true ? upper(ti.AudioCodec) : null,
+    },
+    subtitle: subtitle ? [subtitle.Language || subtitle.DisplayTitle || 'Subtitle', upper(subtitle.Codec)].filter(Boolean).join(' · ') : null,
+    containerTarget: ti?.Container ? upper(ti.Container) : null,
+    // Unlike Plex, Jellyfin says why it is transcoding.
+    changes: ti && Array.isArray(ti.TranscodeReasons) ? ti.TranscodeReasons.map(readableReason) : [],
+    hardware: ti ? Boolean(ti.HardwareAccelerationType) : null,
+    throttled: null,
+  };
 }
 
 /** Jellyfin reports bits per second; the dashboard works in kbps. */

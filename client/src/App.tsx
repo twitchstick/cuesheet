@@ -9,9 +9,16 @@ import Toasts, { type ToastMessage } from './components/Toast';
 import TopBar, { MobileGreeting } from './components/TopBar';
 import MonthCalendar, { gridFor } from './components/MonthCalendar';
 import WeekCalendar from './components/WeekCalendar';
+import MediaDetailPanel from './components/MediaDetailPanel';
+import StreamDetailPanel from './components/StreamDetailPanel';
 import { usePoll } from './hooks/usePoll';
 import { addDays, greeting, mondayOf, toIsoDate } from './lib/format';
-import type { AppConfig, SetupStatus, View } from './types';
+import type { AppConfig, CalendarItem, RecentItem, SetupStatus, Stream, View } from './types';
+
+/** What the detail panel is showing. A stream is held by id so it stays live. */
+type Selection =
+  | { kind: 'stream'; id: string }
+  | { kind: 'media'; id: string; title: string; subtitle: string; poster: string | null; type: string };
 
 // Now Playing leads the overview, so there is no separate streams route; an
 // old #streams link falls through to the overview.
@@ -29,6 +36,8 @@ export default function App() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const [setup, setSetup] = useState<SetupStatus | null>(null);
+  // What the detail panel is showing: a live session, or a library/calendar item.
+  const [selected, setSelected] = useState<Selection | null>(null);
 
   useEffect(() => {
     api.config().then(setConfig).catch((err) => setConfigError(err.message));
@@ -126,16 +135,34 @@ export default function App() {
     requests.refresh();
     navigate('overview');
   };
+  const openStream = useCallback((stream: Stream) => setSelected({ kind: 'stream', id: stream.id }), []);
+  const openRecent = useCallback(
+    (item: RecentItem) => setSelected({ kind: 'media', id: item.id, title: item.title, subtitle: item.subtitle, poster: item.poster, type: item.type }),
+    [],
+  );
+  const openCalendar = useCallback(
+    (item: CalendarItem) => setSelected({ kind: 'media', id: item.id, title: item.title, subtitle: item.subtitle, poster: item.poster, type: item.type }),
+    [],
+  );
+  const closePanel = useCallback(() => setSelected(null), []);
+
+  // The session is looked up fresh each render so the panel keeps ticking with
+  // the poll, and closes itself if the stream stops while it is open.
+  const openStreamData = selected?.kind === 'stream' ? (streams.data?.items ?? []).find((s) => s.id === selected.id) : undefined;
+  useEffect(() => {
+    if (selected?.kind === 'stream' && streams.data && !openStreamData) setSelected(null);
+  }, [selected, streams.data, openStreamData]);
+
   const title = config?.title ?? 'Cuesheet';
   const hello = greeting(config?.userName ?? '', now);
   const serverName = config?.serverName ?? '';
 
   const streamErrors = streams.data?.errors ?? (streams.error ? { server: streams.error } : null);
   const weekView = hasCalendar && (
-    <WeekCalendar start={weekStart} today={calendar.data?.today ?? today} items={calendar.data?.items ?? null} errors={calendar.data?.errors ?? null} loading={calendar.loading} onShift={(days) => setWeekOffset((o) => (days === 0 ? 0 : o + days))} />
+    <WeekCalendar start={weekStart} today={calendar.data?.today ?? today} items={calendar.data?.items ?? null} errors={calendar.data?.errors ?? null} loading={calendar.loading} onShift={(days) => setWeekOffset((o) => (days === 0 ? 0 : o + days))} onSelect={openCalendar} />
   );
   const monthView = hasCalendar && (
-    <MonthCalendar month={month} today={monthCalendar.data?.today ?? today} items={monthCalendar.data?.items ?? null} errors={monthCalendar.data?.errors ?? null} loading={monthCalendar.loading} onMonth={setMonth} />
+    <MonthCalendar month={month} today={monthCalendar.data?.today ?? today} items={monthCalendar.data?.items ?? null} errors={monthCalendar.data?.errors ?? null} loading={monthCalendar.loading} onMonth={setMonth} onSelect={openCalendar} />
   );
   const requestsView = (full: boolean) =>
     hasSeerr && <Requests requests={requests.data?.items ?? null} requestsError={requests.error} seerrUrl={config?.seerrUrl ?? ''} full={full} />;
@@ -166,13 +193,13 @@ export default function App() {
         <div className="flex flex-col gap-10">
           {view === 'overview' && (
             <>
-              {hasMediaServer && <StreamGrid streams={streams.data?.items ?? null} errors={streamErrors} loading={streams.loading} />}
-              {hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} limit={config?.recentLimit ?? 15} />}
+              {hasMediaServer && <StreamGrid streams={streams.data?.items ?? null} errors={streamErrors} loading={streams.loading} onSelect={openStream} />}
+              {hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} limit={config?.recentLimit ?? 15} onSelect={openRecent} />}
               {weekView}
               {requestsView(false)}
             </>
           )}
-          {view === 'recent' && hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} full />}
+          {view === 'recent' && hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} full onSelect={openRecent} />}
           {view === 'calendar' && monthView}
           {view === 'requests' && requestsView(true)}
           {view === 'setup' && <SetupWizard firstRun={Boolean(setup?.needsSetup)} onSaved={onSettingsSaved} onCancel={() => navigate('overview')} notify={notify} />}
@@ -188,6 +215,15 @@ export default function App() {
           {streams.updatedAt ? ` · updated ${new Date(streams.updatedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : ''}
         </footer>
       </main>
+
+      {openStreamData && <StreamDetailPanel stream={openStreamData} onClose={closePanel} />}
+      {selected?.kind === 'media' && (
+        <MediaDetailPanel
+          id={selected.id}
+          fallback={{ title: selected.title, subtitle: selected.subtitle, poster: selected.poster, type: selected.type }}
+          onClose={closePanel}
+        />
+      )}
 
       <Toasts items={toasts} />
     </div>
