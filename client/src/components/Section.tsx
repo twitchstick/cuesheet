@@ -17,7 +17,7 @@ export default function Section({ title, subtitle, action, errors, children }: P
     <section className="animate-rise">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
+          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h2>
           {subtitle && <p className="mt-0.5 text-sm text-fog-500">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-3">

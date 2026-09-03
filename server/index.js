@@ -163,8 +163,10 @@ api.get('/calendar', async (req, res, next) => {
     const today = localDate(new Date(), config.timeZone);
     const start = isIsoDate(req.query.start) ? req.query.start : today;
     const end = isIsoDate(req.query.end) ? req.query.end : addDays(start, 6);
-    if (end < start || addDays(start, 31) < end) {
-      return res.status(400).json({ error: 'Calendar range must be 1–31 days' });
+    // 42 days covers the widest month grid the calendar tab can draw
+    // (six Monday-start weeks), which is the largest range the UI asks for.
+    if (end < start || addDays(start, 41) < end) {
+      return res.status(400).json({ error: 'Calendar range must be 1–42 days' });
     }
     const tasks = [];
     if (config.radarr.enabled) tasks.push(['radarr', () => radarr.calendar(config.radarr, start, end)]);

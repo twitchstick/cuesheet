@@ -5,6 +5,39 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.2.0] — 2026-09-03
+
+### Added
+
+- **The release calendar tab shows a whole month.** A Monday-start grid with
+  arrows either side of the month name, and the name itself is a button that
+  jumps back to today. Days with more than a few releases scroll inside their
+  own cell and label the total, so a busy Friday no longer stretches the row.
+  Days with nothing scheduled are drawn bare rather than as empty cards, which
+  keeps a quiet month quiet. The overview still shows the week ahead.
+
+### Changed
+
+- **Now Playing moved off the sidebar.** It leads the overview, so the separate
+  tab was showing the same panel twice. An old `#streams` link lands on the
+  overview.
+- **Typography is self-hosted.** Archivo for the interface and JetBrains Mono
+  for anything that reads as an instrument — timecodes, bitrates, dates — ship
+  with the container, so the dashboard looks the same on every machine and
+  needs no outside font request.
+- **Streams read as a playout log.** Each row carries a tally light (on air,
+  slow, buffering), elapsed and remaining timecodes, and a cue strip with a
+  playhead in place of the old gradient pill. Codec, bitrate and playback
+  method sit on their own line so nothing truncates.
+- **Quieter chrome throughout** — less glow, fewer competing accents, and
+  numbers set in tabular figures so they stop shifting as they tick.
+
+### Fixed
+
+- **The calendar accepts a six-week range.** The API capped a request at 31
+  days, one week short of the widest month grid, so the neighbouring days at
+  either end of a month never carried their releases.
+
 ## [2.1.0] — 2026-09-03
 
 ### Changed

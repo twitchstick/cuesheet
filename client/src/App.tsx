@@ -7,12 +7,15 @@ import Sidebar, { MobileNav, ServicesCard, type ServiceHealth } from './componen
 import StreamGrid from './components/StreamGrid';
 import Toasts, { type ToastMessage } from './components/Toast';
 import TopBar, { MobileGreeting } from './components/TopBar';
+import MonthCalendar, { gridFor } from './components/MonthCalendar';
 import WeekCalendar from './components/WeekCalendar';
 import { usePoll } from './hooks/usePoll';
 import { addDays, greeting, mondayOf, toIsoDate } from './lib/format';
 import type { AppConfig, SetupStatus, View } from './types';
 
-const VIEWS: View[] = ['overview', 'streams', 'recent', 'calendar', 'requests', 'setup'];
+// Now Playing leads the overview, so there is no separate streams route; an
+// old #streams link falls through to the overview.
+const VIEWS: View[] = ['overview', 'recent', 'calendar', 'requests', 'setup'];
 const viewFromHash = (): View => {
   const v = window.location.hash.replace(/^#\/?/, '') as View;
   return VIEWS.includes(v) ? v : 'overview';
@@ -70,9 +73,19 @@ export default function App() {
   const recent = usePoll(api.recent, 5 * 60_000, hasMediaServer);
 
   const today = toIsoDate(now);
+  // The overview shows the week ahead; the calendar tab shows a whole month.
   const weekStart = useMemo(() => addDays(mondayOf(today), weekOffset), [today, weekOffset]);
   const calendarFetcher = useCallback(() => api.calendar(weekStart, addDays(weekStart, 6)), [weekStart]);
-  const calendar = usePoll(calendarFetcher, 15 * 60_000, hasCalendar);
+  const calendar = usePoll(calendarFetcher, 15 * 60_000, hasCalendar && view !== 'calendar');
+
+  const [month, setMonth] = useState(today);
+  // Fetch the whole visible grid, not just the month, so the leading and
+  // trailing days from the neighbouring months carry their releases too.
+  const monthFetcher = useCallback(() => {
+    const days = gridFor(month);
+    return api.calendar(days[0], days[days.length - 1]);
+  }, [month]);
+  const monthCalendar = usePoll(monthFetcher, 15 * 60_000, hasCalendar && view === 'calendar');
 
   const requests = usePoll(api.requests, 60_000, hasSeerr);
 
@@ -95,10 +108,7 @@ export default function App() {
 
   const available = useMemo(() => {
     const set = new Set<View>(['overview', 'setup']);
-    if (hasMediaServer) {
-      set.add('streams');
-      set.add('recent');
-    }
+    if (hasMediaServer) set.add('recent');
     if (hasCalendar) set.add('calendar');
     if (hasSeerr) set.add('requests');
     return set;
@@ -112,6 +122,7 @@ export default function App() {
     streams.refresh();
     recent.refresh();
     calendar.refresh();
+    monthCalendar.refresh();
     requests.refresh();
     navigate('overview');
   };
@@ -120,8 +131,11 @@ export default function App() {
   const serverName = config?.serverName ?? '';
 
   const streamErrors = streams.data?.errors ?? (streams.error ? { server: streams.error } : null);
-  const calendarView = hasCalendar && (
+  const weekView = hasCalendar && (
     <WeekCalendar start={weekStart} today={calendar.data?.today ?? today} items={calendar.data?.items ?? null} errors={calendar.data?.errors ?? null} loading={calendar.loading} onShift={(days) => setWeekOffset((o) => (days === 0 ? 0 : o + days))} />
+  );
+  const monthView = hasCalendar && (
+    <MonthCalendar month={month} today={monthCalendar.data?.today ?? today} items={monthCalendar.data?.items ?? null} errors={monthCalendar.data?.errors ?? null} loading={monthCalendar.loading} onMonth={setMonth} />
   );
   const requestsView = (full: boolean) =>
     hasSeerr && <Requests requests={requests.data?.items ?? null} requestsError={requests.error} seerrUrl={config?.seerrUrl ?? ''} full={full} />;
@@ -154,13 +168,12 @@ export default function App() {
             <>
               {hasMediaServer && <StreamGrid streams={streams.data?.items ?? null} errors={streamErrors} loading={streams.loading} />}
               {hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} limit={config?.recentLimit ?? 15} />}
-              {calendarView}
+              {weekView}
               {requestsView(false)}
             </>
           )}
-          {view === 'streams' && hasMediaServer && <StreamGrid streams={streams.data?.items ?? null} errors={streamErrors} loading={streams.loading} />}
           {view === 'recent' && hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} full />}
-          {view === 'calendar' && calendarView}
+          {view === 'calendar' && monthView}
           {view === 'requests' && requestsView(true)}
           {view === 'setup' && <SetupWizard firstRun={Boolean(setup?.needsSetup)} onSaved={onSettingsSaved} onCancel={() => navigate('overview')} notify={notify} />}
           {view !== 'overview' && !available.has(view) && <div className="card p-6 text-sm text-fog-500">That section isn’t enabled. Configure the matching service to turn it on.</div>}

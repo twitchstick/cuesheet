@@ -9,7 +9,12 @@
 html,
 body {
   @apply bg-night-950 text-fog-100 antialiased;
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+/* Numbers in this app are measurements: keep them from shifting on refresh. */
+.tabular-nums,
+.font-mono {
+  font-variant-numeric: tabular-nums;
 }
 
 .scroll-row {
@@ -50,6 +55,11 @@ body {
 
   .tile {
     @apply rounded-xl border border-line bg-night-700 px-4 py-3;
+  }
+
+  /* Small caps caption used for every readout label. */
+  .label {
+    @apply font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-fog-500;
   }
 
   .chip {

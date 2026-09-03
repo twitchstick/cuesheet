@@ -25,13 +25,19 @@ export default {
           600: '#6a4bf0',
         },
         glow: '#22d3ee',
+        // Tally lights, as in a gallery: red is on air, amber wants attention.
         live: '#ff3b6f',
+        tally: { on: '#ff3b52', hold: '#f5a524', idle: '#5d6478' },
         // The two media servers' own colours, used to tint their streams.
         plex: '#e5a00d',
         jellyfin: '#aa5cc3',
       },
       fontFamily: {
-        sans: ['Inter', 'Segoe UI', 'ui-sans-serif', 'system-ui', '-apple-system', 'Roboto', 'sans-serif'],
+        // Archivo is a grotesque built for signage and dense display — the
+        // lineage of broadcast lower-thirds rather than another product sans.
+        sans: ['Archivo Variable', 'Archivo', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Every number on this page is a measurement. Timecode is always mono.
+        mono: ['JetBrains Mono Variable', 'JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       boxShadow: {
         card: '0 1px 0 rgba(255,255,255,0.02) inset, 0 12px 32px -18px rgba(0,0,0,0.7)',

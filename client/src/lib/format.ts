@@ -102,3 +102,21 @@ export const serviceTheme: Record<string, { text: string; border: string; bg: st
   plex: { text: 'text-plex', border: 'border-l-plex', bg: 'bg-plex', dot: 'bg-plex' },
   jellyfin: { text: 'text-jellyfin', border: 'border-l-jellyfin', bg: 'bg-jellyfin', dot: 'bg-jellyfin' },
 };
+
+/** Broadcast timecode, HH:MM:SS — fixed width so a refresh never shifts the column. */
+export function timecode(ms: number): string {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(Math.floor(t / 3600))}:${p(Math.floor((t % 3600) / 60))}:${p(t % 60)}`;
+}
+
+/** Time still to run, counted down the way a gallery clock shows it. */
+export const remainingCode = (durationMs: number, offsetMs: number) => `−${timecode(Math.max(0, durationMs - offsetMs))}`;
+
+/** Tally state: what a light on the desk would be showing for this stream. */
+export function tally(stream: { state: string; attention: string | null }): { cls: string; label: string; pulse: boolean } {
+  if (stream.attention) return { cls: 'bg-tally-hold', label: stream.attention, pulse: false };
+  if (stream.state === 'paused') return { cls: 'bg-tally-idle', label: 'Paused', pulse: false };
+  if (stream.state === 'buffering') return { cls: 'bg-tally-hold', label: 'Buffering', pulse: true };
+  return { cls: 'bg-tally-on', label: 'On air', pulse: true };
+}
