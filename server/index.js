@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { config, enabledServices, anyServiceConfigured, publicConfig, getSettings, saveSettings, effectiveSecret, SECRET_FIELD, SERVICES } from './config.js';
 import { probes } from './services/probe.js';
 import { cached, invalidate } from './cache.js';
-import { fetchRaw, UpstreamError } from './http.js';
+import { fetchRaw, readCappedBody, assertReachableUrl, UpstreamError } from './http.js';
 import { addDays, isIsoDate, localDate } from './util.js';
 import * as plex from './services/plex.js';
 import * as jellyfin from './services/jellyfin.js';
@@ -50,6 +50,25 @@ api.use((_req, res, next) => {
   next();
 });
 
+// Nothing here asks who you are, so a page the viewer happens to be visiting
+// must not be able to reach in and change settings. Browsers always send an
+// Origin on cross-site writes, and it stays the attacker's domain even when
+// DNS rebinding makes the request look same-origin to the network.
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+api.use((req, res, next) => {
+  if (!WRITE_METHODS.has(req.method)) return next();
+  const origin = req.get('origin');
+  if (!origin) return next(); // curl, scripts, the container itself
+  let originHost;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    return res.status(403).json({ error: 'Bad origin' });
+  }
+  if (originHost !== req.get('host')) return res.status(403).json({ error: 'Cross-site requests are not allowed' });
+  next();
+});
+
 /** Run one loader per enabled service and merge the results, reporting per-service errors. */
 async function gather(tasks) {
   const settled = await Promise.allSettled(tasks.map(([, fn]) => fn()));
@@ -92,6 +111,11 @@ api.post('/settings/test', async (req, res) => {
   const target = String(url ?? '').trim();
   if (!target) return res.status(400).json({ ok: false, error: 'Enter the server URL first' });
   if (!/^https?:\/\//i.test(target)) return res.status(400).json({ ok: false, error: 'URL must start with http:// or https://' });
+  try {
+    assertReachableUrl(target);
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err.message });
+  }
   const secret = effectiveSecret(service, req.body?.[secretField], target);
   if (!secret) return res.status(400).json({ ok: false, error: `Enter the ${service === 'plex' ? 'token' : 'API key'} first` });
   try {
@@ -203,8 +227,7 @@ api.get('/image', async (req, res) => {
     }
     res.set('Content-Type', type);
     res.set('Cache-Control', 'public, max-age=86400');
-    const bytes = Buffer.from(await upstream.arrayBuffer());
-    res.send(bytes);
+    res.send(await readCappedBody(upstream));
   } catch (err) {
     console.warn(`[image:${source}] ${err.message}`);
     res.status(502).end();

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertReachableUrl } from './http.js';
 
 const env = (key, fallback = '') => (process.env[key] ?? fallback).trim();
 const num = (key, fallback) => {
@@ -145,6 +146,11 @@ function cleanUrl(value, label) {
     throw new SettingsError(`${label} URL is not a valid URL (include http:// or https://)`);
   }
   if (!['http:', 'https:'].includes(parsed.protocol)) throw new SettingsError(`${label} URL must start with http:// or https://`);
+  try {
+    assertReachableUrl(url);
+  } catch (err) {
+    throw new SettingsError(`${label}: ${err.message}`);
+  }
   return url;
 }
 

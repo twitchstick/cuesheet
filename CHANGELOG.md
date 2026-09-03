@@ -5,6 +5,32 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.1.0] — 2026-09-03
+
+### Changed
+
+- **The front page leads with Now Playing.** The oversized hero and the side
+  panel are gone; the stream cards now sit directly under the greeting, with a
+  slim strip above them carrying the counts and the total bandwidth. Recently
+  added, the calendar and requests follow underneath as before.
+
+### Security
+
+Findings from a pass over the code with a secure-coding checklist, all of them
+consequences of removing sign-in in 2.0.0:
+
+- **Link-local addresses are refused** when testing or saving a service URL.
+  Private addresses stay allowed — that is where a media server lives — but
+  `169.254.0.0/16` and the cloud metadata hostnames are not somewhere Cuesheet
+  should ever reach, and the connection test is open to anyone on the network.
+- **Redirects are followed by Cuesheet rather than by fetch**, and every hop is
+  checked against the same rule, so a service cannot bounce a request onto a
+  refused address. Redirect chains are capped.
+- **Cross-site writes are rejected.** A request that changes settings and
+  carries an Origin from another site is refused, which closes the drive-by and
+  DNS-rebinding routes into an app that no longer asks who you are.
+- **The image proxy caps how much it will pull down** from an upstream.
+
 ## [2.0.0] — 2026-09-02
 
 ### Removed
@@ -106,6 +132,7 @@ First release.
 - Responses carry a content security policy, `nosniff`, `X-Frame-Options` and
   `Referrer-Policy`.
 
+[2.1.0]: https://github.com/twitchstick/cuesheet/releases/tag/v2.1.0
 [2.0.0]: https://github.com/twitchstick/cuesheet/releases/tag/v2.0.0
 [1.1.0]: https://github.com/twitchstick/cuesheet/releases/tag/v1.1.0
 [1.0.0]: https://github.com/twitchstick/cuesheet/releases/tag/v1.0.0

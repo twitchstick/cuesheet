@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
-import HeroStream from './components/HeroStream';
 import RecentlyAdded from './components/RecentlyAdded';
 import SetupWizard from './components/SetupWizard';
 import Requests from './components/Requests';
 import Sidebar, { MobileNav, ServicesCard, type ServiceHealth } from './components/Sidebar';
 import StreamGrid from './components/StreamGrid';
-import StreamsPanel from './components/StreamsPanel';
 import Toasts, { type ToastMessage } from './components/Toast';
 import TopBar, { MobileGreeting } from './components/TopBar';
 import WeekCalendar from './components/WeekCalendar';
@@ -106,9 +104,6 @@ export default function App() {
     return set;
   }, [hasMediaServer, hasCalendar, hasSeerr]);
 
-  const activeStreams = streams.data?.items ?? [];
-  const featured = useMemo(() => activeStreams.find((s) => s.state === 'playing') ?? activeStreams[0] ?? null, [activeStreams]);
-  const sources = (['plex', 'jellyfin'] as const).filter((s) => services?.[s]);
 
   const nothingConfigured = config && !hasMediaServer && !hasCalendar && !hasSeerr && view !== 'setup';
   const onSettingsSaved = (next: AppConfig) => {
@@ -157,12 +152,7 @@ export default function App() {
         <div className="flex flex-col gap-10">
           {view === 'overview' && (
             <>
-              {hasMediaServer && (
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
-                  <HeroStream stream={featured} loading={streams.loading && !streams.data} />
-                  <StreamsPanel streams={activeStreams} featuredId={featured?.id ?? null} sources={sources} onViewAll={() => navigate('streams')} />
-                </div>
-              )}
+              {hasMediaServer && <StreamGrid streams={streams.data?.items ?? null} errors={streamErrors} loading={streams.loading} />}
               {hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} limit={config?.recentLimit ?? 15} />}
               {calendarView}
               {requestsView(false)}

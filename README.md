@@ -18,7 +18,7 @@ right now, what arrived recently, what is due this week, and a box to ask for
 something new. It runs in Docker, sets itself up from a wizard in the browser,
 and keeps every API key on the server.
 
-- **Now Playing** – active Plex and Jellyfin streams with poster, user, player, progress, direct/transcode, resolution and bandwidth, each tinted in its server's own colour.
+- **Now Playing** – the front page leads with it: every active Plex and Jellyfin stream with poster, user, player, progress, direct/transcode, resolution and bandwidth, each tinted in its server's own colour.
 - **Recently Added** – a scrolling poster row merged from Plex and Jellyfin, newest first, as long as you like.
 - **This Week** – a 7-day calendar of Radarr movie releases (cinema / digital / physical) and Sonarr episode air dates, with a check mark on anything already downloaded. Busy days scroll rather than stretching the row. Step forward/back a week at a time.
 - **Requests** – what the house has asked for through Overseerr or Jellyseerr and where each one stands. Requesting itself happens in Seerr: the *Request media* button opens it in a new tab.
@@ -114,8 +114,16 @@ What it still does carefully:
   (mode `0600`) inside the config volume and are never returned to the browser —
   the settings API reports only whether a key is set.
 - **Artwork from your servers is proxied**, so the browser never holds a
-  credential, and the proxy only ever returns a bitmap. Request artwork loads
-  from TMDB in the browser, the same as Overseerr does it.
+  credential, the proxy only ever returns a bitmap, and it caps how much it
+  will pull down. Request artwork loads from TMDB in the browser, the same as
+  Overseerr does it.
+- **Link-local addresses are refused.** Cuesheet talks to private addresses by
+  design, but `169.254.0.0/16` and the cloud metadata hostnames are blocked, so
+  the open connection test cannot be turned into a probe for them. Redirects
+  are followed by Cuesheet itself and every hop is re-checked.
+- **Cross-site writes are rejected.** A settings change arriving with another
+  site's Origin is refused, which closes the drive-by and DNS-rebinding routes
+  into an app with no sign-in.
 - **A connection test will not send a stored key to a different host.**
   Retesting a saved service reuses its key only when the URL still points at
   that same server.

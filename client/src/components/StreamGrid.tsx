@@ -1,7 +1,7 @@
-import { Loader2, Pause, Play } from 'lucide-react';
+import { AlertTriangle, Gauge, Loader2, Pause, Play } from 'lucide-react';
 import Poster from './Poster';
 import Section, { Empty } from './Section';
-import { bandwidth, playbackLabel, remaining, serviceTheme, sourceLabel } from '../lib/format';
+import { bandwidth, playbackLabel, remaining, serviceTheme, sourceLabel, totalBandwidth } from '../lib/format';
 import type { Errors, Stream } from '../types';
 
 interface Props {
@@ -23,13 +23,66 @@ export default function StreamGrid({ streams, errors, loading }: Props) {
       ) : count === 0 ? (
         <Empty>Nothing is playing right now.</Empty>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {streams!.map((s) => (
-            <StreamCard key={s.id} stream={s} />
-          ))}
-        </div>
+        <>
+          <Summary streams={streams!} />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {streams!.map((s) => (
+              <StreamCard key={s.id} stream={s} />
+            ))}
+          </div>
+        </>
       )}
     </Section>
+  );
+}
+
+/** One line of totals above the cards: what is running and what it costs. */
+function Summary({ streams }: { streams: Stream[] }) {
+  const total = totalBandwidth(streams);
+  const remote = totalBandwidth(streams.filter((s) => s.location === 'remote'));
+  const local = totalBandwidth(streams.filter((s) => s.location !== 'remote'));
+  const attention = streams.filter((s) => s.attention).length;
+
+  const counts: [string, number][] = [
+    ['Plex', streams.filter((s) => s.source === 'plex').length],
+    ['Jellyfin', streams.filter((s) => s.source === 'jellyfin').length],
+    ['Direct play', streams.filter((s) => !s.transcoding).length],
+    ['Transcoding', streams.filter((s) => s.transcoding).length],
+  ];
+
+  return (
+    <div className="card mb-3 flex flex-wrap items-center justify-between gap-x-8 gap-y-4 bg-gradient-to-r from-accent-500/10 to-glow/10 px-5 py-3.5">
+      <dl className="flex flex-wrap items-center gap-x-7 gap-y-3">
+        {counts
+          .filter(([, n]) => n > 0)
+          .map(([label, n]) => (
+            <div key={label}>
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-fog-500">{label}</dt>
+              <dd className="text-lg font-bold leading-tight">{n}</dd>
+            </div>
+          ))}
+        {attention > 0 && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-xs text-amber-200">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              <strong className="font-semibold">{attention}</strong> need{attention === 1 ? 's' : ''} attention
+            </span>
+          </div>
+        )}
+      </dl>
+
+      <div className="text-right">
+        <p className="flex items-center justify-end gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-fog-500">
+          <Gauge className="h-3 w-3" /> Total bandwidth
+        </p>
+        <p className="text-xl font-bold leading-tight">{bandwidth(total) ?? '—'}</p>
+        {total > 0 && (
+          <p className="text-[11px] text-fog-500">
+            {bandwidth(remote) ?? '0'} remote · {bandwidth(local) ?? '0'} local
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -59,8 +112,8 @@ function StreamCard({ stream }: { stream: Stream }) {
           <div className="h-1 overflow-hidden rounded-full bg-white/10">
             <div className="h-full rounded-full bg-gradient-to-r from-accent-500 to-glow transition-[width] duration-700" style={{ width: `${pct}%` }} />
           </div>
-          <div className="mt-1.5 flex items-center justify-between text-[11px] text-fog-500">
-            <span>
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-fog-500">
+            <span className="whitespace-nowrap">
               {stream.durationMs ? remaining(stream.durationMs, stream.offsetMs) : `${pct}%`}
               {rate && <span className="ml-2 font-medium text-fog-300">{rate}</span>}
             </span>

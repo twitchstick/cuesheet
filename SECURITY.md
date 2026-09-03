@@ -32,6 +32,14 @@ needs to be reachable from outside.
   Overseerr does it.
 - A connection test reuses a saved key only when the URL still points at the
   server that key belongs to.
+- Link-local addresses (`169.254.0.0/16`, `fe80::/10`) and the cloud metadata
+  hostnames are refused when testing or saving a service URL. Private addresses
+  remain allowed, since that is where a home media server lives.
+- Redirects are followed by Cuesheet rather than by the fetch layer, with every
+  hop re-checked against that rule and the chain capped.
+- Requests that change settings are rejected when they carry another site's
+  Origin, which closes drive-by and DNS-rebinding routes into an app that does
+  not ask who you are.
 - Responses carry a content security policy, `nosniff`, `X-Frame-Options` and
   `Referrer-Policy`.
 
