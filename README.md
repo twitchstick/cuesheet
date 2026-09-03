@@ -13,6 +13,10 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/twitchstick/cuesheet?color=8b91a5"></a>
 </p>
 
+<p align="center">
+  <sub>Built by <a href="https://github.com/twitchstick">twitchstick</a> · written with <a href="https://claude.com/claude-code">Claude Code</a></sub>
+</p>
+
 Everything worth knowing about a home media server on one page: what is playing
 right now, what arrived recently, what is due this week, and a box to ask for
 something new. It runs in Docker, sets itself up from a wizard in the browser,
@@ -163,3 +167,7 @@ npm run dev           # server on :3000, Vite client on :5173 (proxied to /api)
 - [Security policy](SECURITY.md) — how to report a problem, and what Cuesheet
   does and does not protect against.
 - [MIT licensed](LICENSE).
+
+Built and maintained by [twitchstick](https://github.com/twitchstick). The code
+was written with [Claude Code](https://claude.com/claude-code), which is
+credited as a co-author on each commit.
