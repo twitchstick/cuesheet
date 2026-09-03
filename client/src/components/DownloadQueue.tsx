@@ -110,9 +110,14 @@ function Row({ item, onSelect }: { item: DownloadItem; onSelect?: (item: Downloa
             <h3 className="truncate text-sm font-semibold leading-tight tracking-tight">{item.title}</h3>
             {item.subtitle && <p className="truncate text-xs text-fog-500">{item.subtitle}</p>}
           </div>
-          <span className="mt-0.5 flex shrink-0 items-center gap-1.5" title={light.label}>
-            <span className={`h-1.5 w-1.5 rounded-full ${light.cls} ${light.pulse ? 'animate-pulse' : ''}`} />
-            <span className="label !text-fog-500">{light.label}</span>
+          {/* min-w-0, not shrink-0: the status text is free-form, straight from
+              Radarr/Sonarr's own error message, so it can run to a full sentence.
+              Left it shrink-0 before and it ran past the card's edge; the title
+              on the left already truncates the same way. Full text is still on
+              the title attribute, for a hover. */}
+          <span className="mt-0.5 flex min-w-0 max-w-[45%] items-center gap-1.5" title={light.label}>
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${light.cls} ${light.pulse ? 'animate-pulse' : ''}`} />
+            <span className="label !text-fog-500 truncate">{light.label}</span>
           </span>
         </div>
 

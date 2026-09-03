@@ -96,19 +96,33 @@ function rebuild() {
     for (const f of EXTRA_FIELDS[s] ?? []) fields[f] = String(m[s][f] ?? '').trim();
     config[s] = { ...fields, enabled: Boolean(fields.url && fields[SECRET_FIELD[s]]) };
   }
-  config.links = (Array.isArray(saved.links) ? saved.links : [])
-    .map((link) => {
-      try {
-        return sanitizeLink(link);
-      } catch {
-        // A hand-edited settings.json shouldn't be able to stop the app
-        // from starting — drop the one bad entry rather than crash.
-        return null;
-      }
-    })
-    .filter(Boolean);
+  config.links = (Array.isArray(saved.links) ? saved.links : []).map(loadLink).filter(Boolean);
 }
-rebuild();
+
+/**
+ * Load a link already sitting in settings.json. This is deliberately not
+ * sanitizeLink() again: that full validation (URL shape, the SSRF guard)
+ * is for the moment a link is saved, when the input is new and unproven.
+ * Data already in the file was already validated the moment it was
+ * written — re-running that same check on every single boot means a rule
+ * change, or any edge case in the check itself, can silently delete a
+ * link on the next restart, for a reason that never surfaces anywhere.
+ * Loading only needs to rule out a genuinely broken entry, not re-litigate
+ * a good one.
+ */
+function loadLink(raw) {
+  if (!raw || typeof raw !== 'object' || typeof raw.label !== 'string' || typeof raw.url !== 'string') {
+    console.warn(`Dropping a malformed link from settings.json: ${JSON.stringify(raw)}`);
+    return null;
+  }
+  return {
+    id: typeof raw.id === 'string' && raw.id ? raw.id : crypto.randomUUID(),
+    label: raw.label.slice(0, 40),
+    url: raw.url.slice(0, 300),
+    icon: LINK_ICONS.includes(raw.icon) ? raw.icon : null,
+    iconUrl: typeof raw.iconUrl === 'string' && raw.iconUrl ? raw.iconUrl.slice(0, 300) : null,
+  };
+}
 
 export const enabledServices = () => Object.fromEntries(SERVICES.map((s) => [s, config[s].enabled]));
 
@@ -286,3 +300,12 @@ export function effectiveSecret(service, provided, url) {
   const target = origin(url);
   return target && target === origin(config[service].url) ? stored : '';
 }
+
+// Run only once every const above has been declared. A previous version
+// called this immediately after its own definition, midway through the
+// file -- twice now that has meant a helper it depends on (str, then
+// LINK_ICONS) hadn't been initialized yet, since `const` stays in the
+// temporal dead zone until its own line runs. That silently dropped every
+// link on every single boot. Calling it last, once, closes off the whole
+// class of bug rather than the one variable that happened to trip it.
+rebuild();
