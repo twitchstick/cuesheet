@@ -172,6 +172,8 @@ export interface QuickLink {
   label: string;
   url: string;
   icon: LinkIcon | null;
+  /** A direct address for the tile's icon -- your own selfh.st mirror, say -- overriding the favicon and the curated set. */
+  iconUrl: string | null;
 }
 
 export interface Errors {

@@ -5,6 +5,16 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.6.0] — 2026-09-03
+
+### Added
+
+- **A quick link's icon can point anywhere** — your own [selfh.st/icons](https://selfh.st/icons/)
+  mirror, or any other icon server on your network — instead of only the
+  site's own favicon or the curated set. Pick "Custom" in the icon picker
+  and give it the address of one icon file. If it fails to load, the tile
+  falls back to the generic icon rather than showing a broken image.
+
 ## [2.5.1] — 2026-09-03
 
 ### Fixed

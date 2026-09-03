@@ -93,8 +93,14 @@ export default function QuickLinks({ items, loading, onChange, notify }: Props) 
 
 function Tile({ link, onEdit }: { link: QuickLink; onEdit: () => void }) {
   const Icon = ICONS[link.icon ?? 'link'] ?? Link2;
+  const [customFailed, setCustomFailed] = useState(false);
   const [faviconFailed, setFaviconFailed] = useState(false);
-  const favicon = !link.icon && !faviconFailed ? faviconUrl(link.url) : null;
+  // Priority: an explicit icon address, then a curated pick, then the
+  // site's own favicon, then the generic fallback. If the custom address
+  // 404s, fall back straight to generic rather than the target's unrelated
+  // favicon -- picking a custom icon was a deliberate choice to override it.
+  const custom = link.iconUrl && !customFailed ? link.iconUrl : null;
+  const favicon = !custom && !link.icon && !faviconFailed ? faviconUrl(link.url) : null;
 
   return (
     <div className="group/tile relative">
@@ -105,7 +111,9 @@ function Tile({ link, onEdit }: { link: QuickLink; onEdit: () => void }) {
         title={link.label}
         className="card flex h-[74px] w-[74px] flex-col items-center justify-center gap-1.5 p-2 text-center transition-colors hover:bg-white/[0.035]"
       >
-        {favicon ? (
+        {custom ? (
+          <img src={custom} alt="" className="h-6 w-6 rounded" onError={() => setCustomFailed(true)} />
+        ) : favicon ? (
           <img src={favicon} alt="" className="h-6 w-6 rounded" onError={() => setFaviconFailed(true)} />
         ) : (
           <Icon className="h-6 w-6 text-fog-300" strokeWidth={1.75} />
@@ -150,18 +158,36 @@ function LinkEditor({
   const [label, setLabel] = useState(link?.label ?? '');
   const [url, setUrl] = useState(link?.url ?? '');
   const [icon, setIcon] = useState<LinkIcon | null>(link?.icon ?? null);
+  const [customUrl, setCustomUrl] = useState(link?.iconUrl ?? '');
+  const [customMode, setCustomMode] = useState(Boolean(link?.iconUrl));
   const [error, setError] = useState<string | null>(null);
+
+  const pickCurated = (key: LinkIcon | null) => {
+    setIcon(key);
+    setCustomMode(false);
+  };
+  const pickCustom = () => {
+    setIcon(null);
+    setCustomMode(true);
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!label.trim()) return setError('Give it a name.');
     if (!url.trim()) return setError('Give it an address.');
+    if (customMode && !customUrl.trim()) return setError('Give the icon an address, or switch back to Auto.');
     setError(null);
     // crypto.randomUUID() only exists in a secure context (HTTPS, or the
     // loopback exception for 127.0.0.1) -- Cuesheet is plain HTTP on a LAN
     // address, so the browser never has it. The server already assigns an
     // id when one isn't sent, so a new link just goes without one.
-    onSave({ id: link?.id ?? '', label: label.trim(), url: url.trim(), icon });
+    onSave({
+      id: link?.id ?? '',
+      label: label.trim(),
+      url: url.trim(),
+      icon: customMode ? null : icon,
+      iconUrl: customMode ? customUrl.trim() : null,
+    });
   };
 
   return (
@@ -196,8 +222,8 @@ function LinkEditor({
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
-              onClick={() => setIcon(null)}
-              className={`rounded-lg border px-2.5 py-1.5 text-xs ${icon === null ? 'border-accent-500/60 bg-accent-500/10 text-fog-100' : 'border-line text-fog-500 hover:text-fog-300'}`}
+              onClick={() => pickCurated(null)}
+              className={`rounded-lg border px-2.5 py-1.5 text-xs ${!customMode && icon === null ? 'border-accent-500/60 bg-accent-500/10 text-fog-100' : 'border-line text-fog-500 hover:text-fog-300'}`}
             >
               Auto
             </button>
@@ -207,17 +233,34 @@ function LinkEditor({
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setIcon(key)}
+                  onClick={() => pickCurated(key)}
                   aria-label={key}
                   title={key}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg border ${icon === key ? 'border-accent-500/60 bg-accent-500/10 text-fog-100' : 'border-line text-fog-500 hover:text-fog-300'}`}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg border ${!customMode && icon === key ? 'border-accent-500/60 bg-accent-500/10 text-fog-100' : 'border-line text-fog-500 hover:text-fog-300'}`}
                 >
                   <Icon className="h-4 w-4" strokeWidth={1.75} />
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={pickCustom}
+              className={`rounded-lg border px-2.5 py-1.5 text-xs ${customMode ? 'border-accent-500/60 bg-accent-500/10 text-fog-100' : 'border-line text-fog-500 hover:text-fog-300'}`}
+            >
+              Custom
+            </button>
           </div>
-          <p className="mt-1.5 text-[11px] text-fog-500">Auto uses the site's own icon; pick one if that doesn't look right.</p>
+          {customMode ? (
+            <input
+              className={`${inputCls} mt-2`}
+              value={customUrl}
+              onChange={(e) => setCustomUrl(e.target.value)}
+              placeholder="http://192.168.1.194:4050/svg/radarr.svg"
+              autoFocus
+            />
+          ) : (
+            <p className="mt-1.5 text-[11px] text-fog-500">Auto uses the site's own icon; pick one, or point at your own icon server.</p>
+          )}
         </div>
 
         {error && <p className="mb-3 text-xs text-tally-hold">{error}</p>}

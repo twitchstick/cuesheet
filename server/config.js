@@ -184,9 +184,13 @@ function sanitizeLink(raw) {
   const label = str(raw.label, 40);
   if (!label) throw new SettingsError('Every link needs a name');
   const url = cleanUrl(str(raw.url, 300) ?? '', label);
-  const icon = LINK_ICONS.includes(raw.icon) ? raw.icon : null;
+  // A custom icon and a curated one are mutually exclusive; the custom
+  // address wins if somehow both arrive, so stored data is never ambiguous.
+  const iconUrlRaw = str(raw.iconUrl, 300);
+  const iconUrl = iconUrlRaw ? cleanUrl(iconUrlRaw, `${label} icon`) : null;
+  const icon = !iconUrl && LINK_ICONS.includes(raw.icon) ? raw.icon : null;
   const id = str(raw.id, 64) || crypto.randomUUID();
-  return { id, label, url, icon };
+  return { id, label, url, icon, iconUrl };
 }
 
 /** Replace the whole link list and persist it. */

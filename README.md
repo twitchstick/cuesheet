@@ -29,7 +29,7 @@ and keeps every API key on the server.
 - **Bandwidth** – what all the streaming is costing the server, split between remote and local, with a figure on every stream.
 - **Details on click** – open any poster or release for its synopsis, runtime, genres, cast and crew; open a stream for its signal path — codecs in and out, resolution, container, subtitles, and why it is transcoding.
 - **Download queue** – what Radarr and Sonarr are currently fetching: progress, size, time left, and status, from whichever download client you have set up in them. Failed and stalled items sort to the top so they don't get lost among what's just quietly downloading.
-- **Quick links** – a row of squares for anything else on your network — Unraid's own UI, Portainer, Tautulli, whatever else you'd otherwise bookmark separately. Add a name and an address; the icon is the site's own favicon by default, with a small curated set to fall back on.
+- **Quick links** – a row of squares for anything else on your network — Unraid's own UI, Portainer, Tautulli, whatever else you'd otherwise bookmark separately. Add a name and an address; the icon is the site's own favicon by default, with a small curated set to fall back on, or point it at any icon of your own — a self-hosted [selfh.st/icons](https://selfh.st/icons/) mirror, say.
 
 Every service is optional: configure what you have and the rest of the page simply doesn't render. All API keys stay inside the container, and artwork from your own servers is proxied through Cuesheet so the browser never holds a credential. Request artwork is the one exception: it comes straight from TMDB, as it does in Overseerr.
 

@@ -40,11 +40,16 @@ const CSP_REST = [
 function buildCsp() {
   const httpOrigins = new Set();
   for (const link of config.links) {
-    try {
-      const u = new URL(link.url);
-      if (u.protocol === 'http:') httpOrigins.add(u.origin);
-    } catch {
-      // Already validated on save; ignore rather than break every page load.
+    // A link's own address and its icon (favicon or a custom icon URL) can
+    // be different hosts entirely -- both need to be allowed to load.
+    for (const target of [link.url, link.iconUrl]) {
+      if (!target) continue;
+      try {
+        const u = new URL(target);
+        if (u.protocol === 'http:') httpOrigins.add(u.origin);
+      } catch {
+        // Already validated on save; ignore rather than break every page load.
+      }
     }
   }
   const imgSrc = ["img-src 'self' data: https:", ...httpOrigins].join(' ');
