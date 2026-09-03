@@ -5,6 +5,24 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.7.1] — 2026-09-03
+
+### Fixed
+
+- **Quick links reset on every restart.** Every saved link was
+  re-validated on every server startup, and that check referenced a
+  helper declared later in the same file — a scoping bug that threw on
+  every link, every time, silently caught and dropped. Only links were
+  affected; service credentials go through a different, earlier-declared
+  path that never had this problem. Links are no longer re-validated at
+  boot at all, only when one is actually added or edited, which was the
+  cause and needed no other purpose. A genuinely broken entry still gets
+  dropped, now with a warning in the logs instead of vanishing silently.
+- **A download's status message could run past its card.** It's free-form
+  text straight from Radarr or Sonarr, long enough on some errors to run
+  past the edge since the label was set to never shrink. It truncates now;
+  the full text is still there on hover.
+
 ## [2.7.0] — 2026-09-03
 
 ### Added
