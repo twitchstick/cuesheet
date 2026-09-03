@@ -5,6 +5,23 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.5.1] — 2026-09-03
+
+### Fixed
+
+- **Adding a quick link did nothing on a real deployment.** `crypto.randomUUID()`,
+  used to generate a new link's id, only exists in a secure context — HTTPS,
+  or the special case of `127.0.0.1`. Cuesheet is plain HTTP on a LAN address,
+  which is neither, so the browser silently failed to build a new link and the
+  dialog never closed. It was invisible in testing because testing happened
+  against `127.0.0.1`, which is exempt from the very restriction that broke
+  it everywhere else. The id is now assigned by the server, which was never
+  under this restriction to begin with.
+- **A link's favicon never loaded**, for the same underlying gap: the content
+  security policy only allowed images over `https:`, and a LAN service is
+  almost always `http:`. Saving a link now adds its own origin to the policy,
+  rather than opening `http:` up wholesale.
+
 ## [2.5.0] — 2026-09-03
 
 ### Added

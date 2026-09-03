@@ -157,7 +157,11 @@ function LinkEditor({
     if (!label.trim()) return setError('Give it a name.');
     if (!url.trim()) return setError('Give it an address.');
     setError(null);
-    onSave({ id: link?.id ?? crypto.randomUUID(), label: label.trim(), url: url.trim(), icon });
+    // crypto.randomUUID() only exists in a secure context (HTTPS, or the
+    // loopback exception for 127.0.0.1) -- Cuesheet is plain HTTP on a LAN
+    // address, so the browser never has it. The server already assigns an
+    // id when one isn't sent, so a new link just goes without one.
+    onSave({ id: link?.id ?? '', label: label.trim(), url: url.trim(), icon });
   };
 
   return (

@@ -22,9 +22,11 @@ if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY === 
 app.use(express.json({ limit: '32kb' }));
 
 // The page only ever loads its own bundle; posters come from us or from TMDB.
-const CSP = [
+// A quick link's favicon is the one exception: it can point anywhere on the
+// LAN, almost always over plain http, so its origin is added to img-src
+// specifically -- not http: wholesale -- each time a link is saved.
+const CSP_REST = [
   "default-src 'self'",
-  "img-src 'self' data: https:",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self'",
   "connect-src 'self'",
@@ -35,8 +37,22 @@ const CSP = [
   "object-src 'none'",
 ].join('; ');
 
+function buildCsp() {
+  const httpOrigins = new Set();
+  for (const link of config.links) {
+    try {
+      const u = new URL(link.url);
+      if (u.protocol === 'http:') httpOrigins.add(u.origin);
+    } catch {
+      // Already validated on save; ignore rather than break every page load.
+    }
+  }
+  const imgSrc = ["img-src 'self' data: https:", ...httpOrigins].join(' ');
+  return `${imgSrc}; ${CSP_REST}`;
+}
+
 app.use((_req, res, next) => {
-  res.set('Content-Security-Policy', CSP);
+  res.set('Content-Security-Policy', buildCsp());
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('X-Frame-Options', 'DENY');
   res.set('Referrer-Policy', 'no-referrer');
