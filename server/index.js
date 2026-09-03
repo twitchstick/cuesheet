@@ -11,6 +11,7 @@ import * as jellyfin from './services/jellyfin.js';
 import * as radarr from './services/radarr.js';
 import * as sonarr from './services/sonarr.js';
 import * as seerr from './services/seerr.js';
+import * as sabnzbd from './services/sabnzbd.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -268,7 +269,17 @@ api.get('/queue', async (_req, res, next) => {
       items.sort(
         (a, b) => (QUEUE_STATUS_PRIORITY[a.status] ?? 9) - (QUEUE_STATUS_PRIORITY[b.status] ?? 9) || a.sizeLeftBytes - b.sizeLeftBytes,
       );
-      return { items, errors };
+      // The download client is an optional companion to the queue above --
+      // its own aggregate speed/disk-free readout, not one more row source.
+      let client = null;
+      if (config.sabnzbd.enabled) {
+        try {
+          client = await sabnzbd.stats(config.sabnzbd);
+        } catch (err) {
+          errors.sabnzbd = err.message;
+        }
+      }
+      return { items, errors, client };
     });
     res.json(result);
   } catch (err) {

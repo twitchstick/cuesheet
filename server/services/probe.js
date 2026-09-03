@@ -54,4 +54,13 @@ export async function seerr({ url, apiKey }) {
   return { ok: true, name: main?.applicationTitle || 'Seerr', version, users };
 }
 
-export const probes = { plex, jellyfin, radarr, sonarr, seerr };
+export async function sabnzbd({ url, apiKey }) {
+  const params = new URLSearchParams({ apikey: apiKey, output: 'json', mode: 'version' });
+  const data = await fetchJson(`${clean(url)}/api?${params}`, { timeoutMs: 8000 });
+  // A bad key comes back as 200 OK with an error body, not an HTTP error.
+  if (data?.error) throw new Error(data.error);
+  if (typeof data?.version !== 'string') throw new Error('Unexpected response from SABnzbd');
+  return { ok: true, name: 'SABnzbd', version: data.version };
+}
+
+export const probes = { plex, jellyfin, radarr, sonarr, seerr, sabnzbd };

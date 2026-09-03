@@ -121,6 +121,7 @@ export default function App() {
       list.push({ name, ok: calendar.data || queue.data ? !err : undefined });
     }
     if (services.seerr) list.push({ name: 'seerr', ok: requests.data ? true : requests.error ? false : undefined });
+    if (services.sabnzbd) list.push({ name: 'sabnzbd', ok: queue.data ? !queue.data.errors?.sabnzbd : undefined });
     return list;
   }, [services, streams.data, recent.data, calendar.data, queue.data, requests.data, requests.error]);
 
@@ -211,14 +212,22 @@ export default function App() {
               <QuickLinks items={links.data?.items ?? null} loading={links.loading} onChange={links.refresh} notify={notify} />
               {hasMediaServer && <StreamGrid streams={streams.data?.items ?? null} errors={streamErrors} loading={streams.loading} onSelect={openStream} />}
               {hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} limit={config?.recentLimit ?? 15} onSelect={openRecent} />}
-              {weekView}
-              {hasQueue && <DownloadQueue items={queue.data?.items ?? null} errors={queueErrors} loading={queue.loading} onSelect={openQueueItem} />}
-              {requestsView(false)}
+              {/* Release calendar, download queue and requests are all "check when
+                  curious" rather than "glance right now" -- and each already has its
+                  own full tab -- so on a phone, where they stack into a long scroll
+                  instead of a compact grid, they stay tab-only. */}
+              {hasCalendar && <div className="hidden md:block">{weekView}</div>}
+              {hasQueue && (
+                <div className="hidden md:block">
+                  <DownloadQueue items={queue.data?.items ?? null} errors={queueErrors} loading={queue.loading} client={queue.data?.client ?? null} onSelect={openQueueItem} />
+                </div>
+              )}
+              {hasSeerr && <div className="hidden md:block">{requestsView(false)}</div>}
             </>
           )}
           {view === 'recent' && hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} full onSelect={openRecent} />}
           {view === 'calendar' && monthView}
-          {view === 'queue' && hasQueue && <DownloadQueue items={queue.data?.items ?? null} errors={queueErrors} loading={queue.loading} full onSelect={openQueueItem} />}
+          {view === 'queue' && hasQueue && <DownloadQueue items={queue.data?.items ?? null} errors={queueErrors} loading={queue.loading} client={queue.data?.client ?? null} full onSelect={openQueueItem} />}
           {view === 'requests' && requestsView(true)}
           {view === 'setup' && <SetupWizard firstRun={Boolean(setup?.needsSetup)} onSaved={onSettingsSaved} onCancel={() => navigate('overview')} notify={notify} />}
           {view !== 'overview' && !available.has(view) && <div className="card p-6 text-sm text-fog-500">That section isn’t enabled. Configure the matching service to turn it on.</div>}

@@ -1,4 +1,4 @@
-export type ServiceName = 'plex' | 'jellyfin' | 'radarr' | 'sonarr' | 'seerr';
+export type ServiceName = 'plex' | 'jellyfin' | 'radarr' | 'sonarr' | 'seerr' | 'sabnzbd';
 export type View = 'overview' | 'recent' | 'calendar' | 'queue' | 'requests' | 'setup';
 
 export interface AppConfig {
@@ -148,6 +148,12 @@ export interface MediaRequest {
 
 export type DownloadStatus = 'downloading' | 'importing' | 'queued' | 'paused' | 'stalled' | 'warning' | 'failed';
 
+export interface DownloadClientStats {
+  speedKbps: number | null;
+  paused: boolean;
+  diskFreeGb: number | null;
+}
+
 export interface DownloadItem {
   id: string;
   source: 'radarr' | 'sonarr';
@@ -198,6 +204,7 @@ export interface Settings {
   radarr: ServiceSettings;
   sonarr: ServiceSettings;
   seerr: ServiceSettings;
+  sabnzbd: ServiceSettings;
 }
 
 export interface SetupStatus {

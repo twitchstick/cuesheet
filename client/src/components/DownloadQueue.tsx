@@ -1,19 +1,21 @@
 import Poster from './Poster';
 import Section, { Empty } from './Section';
-import { downloadTally, fileSize, sourceLabel, timeLeftLabel } from '../lib/format';
-import type { DownloadItem, Errors } from '../types';
+import { bandwidth, diskFree, downloadTally, fileSize, sourceLabel, timeLeftLabel } from '../lib/format';
+import type { DownloadClientStats, DownloadItem, Errors } from '../types';
 
 interface Props {
   items: DownloadItem[] | null;
   errors: Errors | null;
   loading: boolean;
+  /** The download client's own aggregate readout -- speed, disk free. Optional companion to the rows below. */
+  client?: DownloadClientStats | null;
   /** How many rows the compact view shows. Ignored in the full-page view. */
   limit?: number;
   full?: boolean;
   onSelect?: (item: DownloadItem) => void;
 }
 
-export default function DownloadQueue({ items, errors, loading, limit = 4, full = false, onSelect }: Props) {
+export default function DownloadQueue({ items, errors, loading, client, limit = 4, full = false, onSelect }: Props) {
   const count = items?.length ?? 0;
   const visible = full ? (items ?? []) : (items ?? []).slice(0, limit);
 
@@ -23,6 +25,7 @@ export default function DownloadQueue({ items, errors, loading, limit = 4, full 
       subtitle={count ? `${count} item${count === 1 ? '' : 's'} moving through Radarr and Sonarr` : 'Nothing downloading right now'}
       errors={errors}
     >
+      {client && <ClientStrip client={client} />}
       {loading && !items ? (
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
@@ -44,6 +47,32 @@ export default function DownloadQueue({ items, errors, loading, limit = 4, full 
         </p>
       )}
     </Section>
+  );
+}
+
+/** The download client's own readout: what it's costing right now, and what's left on the volume it lands on. */
+function ClientStrip({ client }: { client: DownloadClientStats }) {
+  return (
+    <div className="card mb-3 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 px-5 py-3.5">
+      <dl className="flex flex-wrap items-end gap-x-7 gap-y-3">
+        <div>
+          <dt className="label">Speed</dt>
+          <dd className="mt-0.5 font-mono text-lg font-medium leading-none tabular-nums">{bandwidth(client.speedKbps) ?? '—'}</dd>
+        </div>
+        {client.paused && (
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-tally-idle" />
+            <span className="text-xs text-fog-500">Paused</span>
+          </div>
+        )}
+      </dl>
+      {diskFree(client.diskFreeGb) && (
+        <div className="text-right">
+          <p className="label">Disk</p>
+          <p className="mt-0.5 font-mono text-lg font-medium leading-none tabular-nums">{diskFree(client.diskFreeGb)}</p>
+        </div>
+      )}
+    </div>
   );
 }
 

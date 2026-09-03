@@ -14,9 +14,9 @@ export const APP_TITLE = 'Cuesheet';
 const DEFAULT_RECENT_LIMIT = 15;
 const RECENT_LIMIT_RANGE = [3, 40];
 
-export const SERVICES = ['plex', 'jellyfin', 'radarr', 'sonarr', 'seerr'];
+export const SERVICES = ['plex', 'jellyfin', 'radarr', 'sonarr', 'seerr', 'sabnzbd'];
 /** Name of the credential field for each service. */
-export const SECRET_FIELD = { plex: 'token', jellyfin: 'apiKey', radarr: 'apiKey', sonarr: 'apiKey', seerr: 'apiKey' };
+export const SECRET_FIELD = { plex: 'token', jellyfin: 'apiKey', radarr: 'apiKey', sonarr: 'apiKey', seerr: 'apiKey', sabnzbd: 'apiKey' };
 const EXTRA_FIELDS = { jellyfin: ['userId'], seerr: ['userId'] };
 
 export const DATA_DIR = path.resolve(env('DATA_DIR', 'data'));
@@ -35,6 +35,7 @@ function envDefaults() {
     radarr: { url: env('RADARR_URL'), apiKey: env('RADARR_API_KEY') },
     sonarr: { url: env('SONARR_URL'), apiKey: env('SONARR_API_KEY') },
     seerr: { url: env('SEERR_URL'), apiKey: env('SEERR_API_KEY'), userId: env('SEERR_USER_ID') },
+    sabnzbd: { url: env('SABNZBD_URL'), apiKey: env('SABNZBD_API_KEY') },
   };
 }
 
@@ -66,6 +67,7 @@ export const config = {
   radarr: {},
   sonarr: {},
   seerr: {},
+  sabnzbd: {},
   links: [],
 };
 

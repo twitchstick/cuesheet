@@ -57,6 +57,7 @@ export const sourceLabel: Record<string, string> = {
   radarr: 'Radarr',
   sonarr: 'Sonarr',
   seerr: 'Seerr',
+  sabnzbd: 'SABnzbd',
 };
 
 export function elapsed(ms: number): string {
@@ -119,6 +120,12 @@ export function tally(stream: { state: string; attention: string | null }): { cl
   if (stream.state === 'paused') return { cls: 'bg-tally-idle', label: 'Paused', pulse: false };
   if (stream.state === 'buffering') return { cls: 'bg-tally-hold', label: 'Buffering', pulse: true };
   return { cls: 'bg-tally-on', label: 'On air', pulse: true };
+}
+
+/** Free space, given in GB, as a human size: 120 GB free, 1.2 TB free. */
+export function diskFree(gb: number | null): string | null {
+  if (gb == null || gb <= 0) return null;
+  return gb >= 1000 ? `${(gb / 1000).toFixed(1)} TB free` : `${Math.round(gb)} GB free`;
 }
 
 /** Bytes as a human size: 4.2 GB, 820 MB. */

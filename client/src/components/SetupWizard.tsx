@@ -44,12 +44,19 @@ const SERVICE_META: Record<
     userLabel: 'Request as (optional)',
     userHelp: 'Requests are made by the API key’s owner unless you pick another user.',
   },
+  sabnzbd: {
+    label: 'SABnzbd',
+    blurb: 'Download speed and free space on the queue',
+    urlExample: 'http://192.168.1.10:8080',
+    secretLabel: 'API key',
+    secretHelp: 'SABnzbd → Config → General → API Key',
+  },
 };
 
 const STEPS: { id: string; title: string; caption: string; services: ServiceName[] }[] = [
   { id: 'welcome', title: 'Welcome', caption: 'Name and basics', services: [] },
   { id: 'media', title: 'Media servers', caption: 'Plex and Jellyfin', services: ['plex', 'jellyfin'] },
-  { id: 'library', title: 'Library', caption: 'Radarr and Sonarr', services: ['radarr', 'sonarr'] },
+  { id: 'library', title: 'Library', caption: 'Radarr, Sonarr and SABnzbd', services: ['radarr', 'sonarr', 'sabnzbd'] },
   { id: 'requests', title: 'Requests', caption: 'Overseerr or Jellyseerr', services: ['seerr'] },
   { id: 'review', title: 'Review', caption: 'Check and save', services: [] },
 ];
@@ -61,6 +68,7 @@ const fromSettings = (s: Settings): Draft => ({
   radarr: { url: s.radarr.url, secret: '', secretSet: Boolean(s.radarr.apiKeySet), userId: '' },
   sonarr: { url: s.sonarr.url, secret: '', secretSet: Boolean(s.sonarr.apiKeySet), userId: '' },
   seerr: { url: s.seerr.url, secret: '', secretSet: Boolean(s.seerr.apiKeySet), userId: s.seerr.userId ?? '' },
+  sabnzbd: { url: s.sabnzbd.url, secret: '', secretSet: Boolean(s.sabnzbd.apiKeySet), userId: '' },
 });
 
 const secretField = (s: ServiceName) => (s === 'plex' ? 'token' : 'apiKey');
