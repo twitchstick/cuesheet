@@ -5,6 +5,14 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.6.1] — 2026-09-03
+
+### Added
+
+- **Quick links can be reordered.** Hover a tile for arrows to move it
+  earlier or later, alongside the existing edit button. No more deleting
+  and re-adding just to change the order.
+
 ## [2.6.0] — 2026-09-03
 
 ### Added

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Activity, Box, Download, Globe, HardDrive, Link2, Pencil, Plus, Server, Shield, Terminal, Trash2, X } from 'lucide-react';
+import { Activity, Box, ChevronLeft, ChevronRight, Download, Globe, HardDrive, Link2, Pencil, Plus, Server, Shield, Terminal, Trash2, X } from 'lucide-react';
 import { api, ApiError } from '../api';
 import type { LinkIcon, QuickLink } from '../types';
 
@@ -49,6 +49,19 @@ export default function QuickLinks({ items, loading, onChange, notify }: Props) 
       notify(err instanceof ApiError ? err.message : 'Could not remove that link', 'error');
     }
   };
+  const move = async (id: string, by: -1 | 1) => {
+    const i = list.findIndex((l) => l.id === id);
+    const j = i + by;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    const next = [...list];
+    [next[i], next[j]] = [next[j], next[i]];
+    try {
+      await api.saveLinks(next);
+      onChange();
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : 'Could not reorder that link', 'error');
+    }
+  };
 
   if (list.length === 0 && editing === null) {
     return (
@@ -66,8 +79,14 @@ export default function QuickLinks({ items, loading, onChange, notify }: Props) 
   return (
     <>
       <div className="flex flex-wrap gap-3">
-        {list.map((link) => (
-          <Tile key={link.id} link={link} onEdit={() => setEditing(link)} />
+        {list.map((link, i) => (
+          <Tile
+            key={link.id}
+            link={link}
+            onEdit={() => setEditing(link)}
+            onMoveBack={i > 0 ? () => move(link.id, -1) : undefined}
+            onMoveForward={i < list.length - 1 ? () => move(link.id, 1) : undefined}
+          />
         ))}
         <button
           type="button"
@@ -91,7 +110,18 @@ export default function QuickLinks({ items, loading, onChange, notify }: Props) 
   );
 }
 
-function Tile({ link, onEdit }: { link: QuickLink; onEdit: () => void }) {
+function Tile({
+  link,
+  onEdit,
+  onMoveBack,
+  onMoveForward,
+}: {
+  link: QuickLink;
+  onEdit: () => void;
+  /** Undefined at either end of the row -- nothing to swap with. */
+  onMoveBack?: () => void;
+  onMoveForward?: () => void;
+}) {
   const Icon = ICONS[link.icon ?? 'link'] ?? Link2;
   const [customFailed, setCustomFailed] = useState(false);
   const [faviconFailed, setFaviconFailed] = useState(false);
@@ -120,14 +150,39 @@ function Tile({ link, onEdit }: { link: QuickLink; onEdit: () => void }) {
         )}
         <span className="w-full truncate text-[11px] leading-tight text-fog-500">{link.label}</span>
       </a>
-      <button
-        type="button"
-        onClick={onEdit}
-        aria-label={`Edit ${link.label}`}
-        className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full border border-line bg-night-800 text-fog-300 hover:text-fog-100 group-hover/tile:flex group-focus-within/tile:flex"
-      >
-        <Pencil className="h-2.5 w-2.5" />
-      </button>
+
+      {/* One hover-reveal strip rather than three separate floating badges,
+          which got crowded at this tile size. */}
+      <div className="pointer-events-none absolute inset-x-0 -top-1.5 flex justify-center opacity-0 transition-opacity group-hover/tile:opacity-100 group-focus-within/tile:opacity-100">
+        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-line bg-night-800 p-0.5 shadow-card">
+          <button
+            type="button"
+            onClick={onMoveBack}
+            disabled={!onMoveBack}
+            aria-label={`Move ${link.label} earlier`}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-fog-300 hover:text-fog-100 disabled:pointer-events-none disabled:opacity-30"
+          >
+            <ChevronLeft className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label={`Edit ${link.label}`}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-fog-300 hover:text-fog-100"
+          >
+            <Pencil className="h-2.5 w-2.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onMoveForward}
+            disabled={!onMoveForward}
+            aria-label={`Move ${link.label} later`}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-fog-300 hover:text-fog-100 disabled:pointer-events-none disabled:opacity-30"
+          >
+            <ChevronRight className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
