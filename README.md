@@ -28,7 +28,7 @@ and keeps every API key on the server.
 - **Requests** – what the house has asked for through Overseerr or Jellyseerr and where each one stands. Requesting itself happens in Seerr: the *Request media* button opens it in a new tab.
 - **Bandwidth** – what all the streaming is costing the server, split between remote and local, with a figure on every stream.
 - **Details on click** – open any poster or release for its synopsis, runtime, genres, cast and crew; open a stream for its signal path — codecs in and out, resolution, container, subtitles, and why it is transcoding.
-- **Download queue** – what Radarr and Sonarr are currently fetching: progress, size, time left, and status, from whichever download client you have set up in them. Failed and stalled items sort to the top so they don't get lost among what's just quietly downloading.
+- **Download queue** – what Radarr and Sonarr are currently fetching: progress, size, time left, and status, from whichever download client you have set up in them. Failed and stalled items sort to the top so they don't get lost among what's just quietly downloading. Add SABnzbd and a slim strip above the queue shows current speed and free space on the download volume.
 - **Quick links** – a row of squares for anything else on your network — Unraid's own UI, Portainer, Tautulli, whatever else you'd otherwise bookmark separately. Add a name and an address; the icon is the site's own favicon by default, with a small curated set to fall back on, or point it at any icon of your own — a self-hosted [selfh.st/icons](https://selfh.st/icons/) mirror, say.
 
 Every service is optional: configure what you have and the rest of the page simply doesn't render. All API keys stay inside the container, and artwork from your own servers is proxied through Cuesheet so the browser never holds a credential. Request artwork is the one exception: it comes straight from TMDB, as it does in Overseerr.
@@ -100,6 +100,7 @@ an update.
 | `RADARR_API_KEY` / `SONARR_API_KEY` | Settings → General → Security → API Key |
 | `SEERR_API_KEY` | Overseerr/Jellyseerr → Settings → General → API Key |
 | `SEERR_USER_ID` (optional) | Requests are created as the API key's owner unless this is set to another Seerr user id. |
+| `SABNZBD_API_KEY` | SABnzbd → Config → General → API Key |
 
 These names are the environment variables, which exist for docker compose users. On Unraid you enter the same values in the setup wizard instead.
 

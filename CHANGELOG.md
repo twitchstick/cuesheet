@@ -5,6 +5,27 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.7.0] — 2026-09-03
+
+### Added
+
+- **SABnzbd.** An optional companion to the download queue: a slim strip
+  above the rows with current speed and free space on the download
+  volume, from whichever download client you actually use. Its own step
+  in setup, its own connection test, its own row in the sidebar's service
+  health. Works alongside the queue, not instead of it -- Radarr and
+  Sonarr already report everything downloading on their own.
+
+### Changed
+
+- **The phone front page is shorter.** Coming this week, the download
+  queue and requests are now tab-only below the width the calendar
+  already switches from a stacked list to a grid at -- each already has
+  its own full tab, and the compact preview on Overview was only ever a
+  convenience. Cuts the phone scroll from 4.3 screens to 2.1. Now
+  Playing, Recently Added and Quick Links stay on Overview at every
+  width; desktop is unchanged.
+
 ## [2.6.1] — 2026-09-03
 
 ### Added
