@@ -18,7 +18,7 @@ export async function plex({ url, token }) {
 export async function jellyfin({ url, apiKey }) {
   const headers = { Authorization: `MediaBrowser Token="${apiKey}", Client="Cuesheet", Device="Cuesheet", DeviceId="cuesheet", Version="0.1"` };
   const info = await fetchJson(`${clean(url)}/System/Info`, { headers, timeoutMs: 8000 });
-  let users = [];
+  let users;
   try {
     const list = await fetchJson(`${clean(url)}/Users`, { headers, timeoutMs: 8000 });
     users = (Array.isArray(list) ? list : []).map((u) => ({ id: u.Id, name: u.Name })).filter((u) => u.id && u.name);
@@ -38,13 +38,13 @@ export const sonarr = (opts) => arr(opts, 'Sonarr');
 export async function seerr({ url, apiKey }) {
   const headers = { 'X-Api-Key': apiKey };
   const main = await fetchJson(`${clean(url)}/api/v1/settings/main`, { headers, timeoutMs: 8000 });
-  let version = null;
+  let version;
   try {
     version = (await fetchJson(`${clean(url)}/api/v1/status`, { timeoutMs: 5000 }))?.version ?? null;
   } catch {
     version = null;
   }
-  let users = [];
+  let users;
   try {
     const list = await fetchJson(`${clean(url)}/api/v1/user?take=100&sort=displayname`, { headers, timeoutMs: 8000 });
     users = (list?.results ?? []).map((u) => ({ id: String(u.id), name: u.displayName || u.email || `User ${u.id}` }));

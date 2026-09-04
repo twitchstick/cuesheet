@@ -4,3 +4,6 @@ client/dist/
 .env
 *.log
 data/
+test-results/
+playwright-report/
+blob-report/

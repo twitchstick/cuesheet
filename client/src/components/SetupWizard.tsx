@@ -92,7 +92,6 @@ export default function SetupWizard({ firstRun, onSaved, onCancel, notify }: Pro
   };
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const update = (service: ServiceName, patch: Partial<ServiceDraft>) => {

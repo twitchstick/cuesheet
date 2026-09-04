@@ -12,6 +12,7 @@ import * as radarr from './services/radarr.js';
 import * as sonarr from './services/sonarr.js';
 import * as seerr from './services/seerr.js';
 import * as sabnzbd from './services/sabnzbd.js';
+import { buildLifecycle } from './lifecycle.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -296,128 +297,6 @@ api.get('/requests', requireSeerr, async (_req, res, next) => {
   }
 });
 
-const LIFECYCLE_STAGE = { requested: 0, monitored: 1, downloading: 2, importing: 3, available: 4 };
-
-/** What Seerr's own status already tells us, before any Radarr/Sonarr refinement. */
-function baseLifecycleStage(mediaStatus) {
-  if (mediaStatus === 'available') return 'available';
-  if (mediaStatus === 'partial') return 'importing'; // some of it has already landed
-  if (mediaStatus === 'processing') return 'monitored';
-  return 'requested';
-}
-
-/**
- * One title's journey from a Seerr request through to a library file, as a
- * single thread instead of four separate glances across four tools. Seerr
- * already syncs a coarse status from Radarr/Sonarr (requested/monitored/
- * available), which is trustworthy and free; the one thing it can't tell us
- * is "downloading right now, this much of it, this long left" -- that needs
- * a live match against the download queue, keyed through each request's
- * TMDB (Radarr) or TVDB (Sonarr) id since that's the only id Seerr knows.
- */
-async function lifecycleFor(r, queueItems, health) {
-  let stage = baseLifecycleStage(r.mediaStatus);
-  let progress = null;
-  let timeleft = null;
-  let statusDetail = null;
-  let stallReason = null;
-  let downloadStatus = null;
-  let subtitle = null;
-  let queueId = null;
-
-  const base = { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId };
-  if (stage === 'available') return base;
-
-  try {
-    // Checked here, not just inside findByTmdbId -- Seerr's tmdbId lands
-    // straight in a cache key below, so an untrusted or misbehaving Seerr
-    // handing back garbage/rotating values must never reach that key build,
-    // or every distinct value plants another entry the cache never sweeps.
-    if (r.mediaType === 'movie' && Number.isInteger(r.tmdbId) && config.radarr.enabled) {
-      const found = await cached(`lifecycle:radarr:${r.tmdbId}`, 5 * 60_000, () => radarr.findByTmdbId(config.radarr, r.tmdbId));
-      if (found) {
-        const row = queueItems.find((q) => q.id === `radarr-${found.id}`);
-        if (row) {
-          stage = row.status === 'importing' ? 'importing' : 'downloading';
-          progress = row.progress;
-          timeleft = row.timeleft;
-          statusDetail = row.statusDetail;
-          downloadStatus = row.status;
-          subtitle = row.subtitle || null;
-          queueId = row.id;
-        } else if (found.hasFile) stage = 'available';
-        else if (found.monitored && LIFECYCLE_STAGE[stage] < LIFECYCLE_STAGE.monitored) stage = 'monitored';
-      }
-    } else if (r.mediaType === 'tv' && Number.isInteger(r.tvdbId) && config.sonarr.enabled) {
-      const found = await cached(`lifecycle:sonarr:${r.tvdbId}`, 5 * 60_000, () => sonarr.findByTvdbId(config.sonarr, r.tvdbId));
-      if (found) {
-        const row = queueItems.find((q) => q.source === 'sonarr' && q.seriesId === found.id);
-        if (row) {
-          stage = row.status === 'importing' ? 'importing' : 'downloading';
-          progress = row.progress;
-          timeleft = row.timeleft;
-          statusDetail = row.statusDetail;
-          downloadStatus = row.status;
-          subtitle = row.subtitle || null;
-          queueId = row.id;
-        } else if (found.hasFile) stage = 'available';
-        else if (found.monitored && LIFECYCLE_STAGE[stage] < LIFECYCLE_STAGE.monitored) stage = 'monitored';
-      }
-    }
-  } catch (err) {
-    // The Radarr/Sonarr refinement is a bonus on top of Seerr's own status,
-    // never a reason to drop the request off the trace entirely.
-    console.warn(`[lifecycle] ${err.message}`);
-  }
-
-  // Stuck at "monitored" -- Radarr/Sonarr has it, but nothing is moving.
-  // The best account Cuesheet has for that isn't a fact about this title
-  // specifically (nothing here is), it's whichever problem that service is
-  // currently reporting about itself -- a dead indexer, an unreachable
-  // download client. Not proof, but the most useful guess available.
-  if (stage === 'monitored') {
-    const issue = health[r.mediaType === 'movie' ? 'radarr' : 'sonarr'][0];
-    if (issue) stallReason = issue.message;
-  }
-
-  return { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId };
-}
-
-/**
- * A queue row with no matching Seerr request -- added straight in Radarr/
- * Sonarr, outside the request flow entirely. Downloads shows these too (it
- * never used to need a request to appear), just without a "requested"
- * backstory Cuesheet doesn't actually have.
- */
-function orphanLifecycleItem(row) {
-  return {
-    // A string, not a digit-stripped number -- "radarr-123" and "sonarr-123"
-    // would otherwise collapse onto the same id and collide as React keys.
-    id: `queue-${row.id}`,
-    mediaType: row.type === 'episode' ? 'tv' : 'movie',
-    tmdbId: null,
-    tvdbId: null,
-    title: row.title,
-    year: null,
-    poster: row.poster,
-    requestStatus: 'approved',
-    mediaStatus: 'processing',
-    seasons: [],
-    requestedBy: '',
-    avatar: null,
-    createdAt: 0,
-    stage: row.status === 'importing' ? 'importing' : 'downloading',
-    progress: row.progress,
-    timeleft: row.timeleft,
-    statusDetail: row.statusDetail,
-    stallReason: null,
-    downloadStatus: row.status,
-    subtitle: row.subtitle || null,
-    fromRequest: false,
-    queueId: row.id,
-  };
-}
-
 api.get('/lifecycle', async (_req, res, next) => {
   try {
     const result = await cached('lifecycle', 30_000, async () => {
@@ -438,12 +317,13 @@ api.get('/lifecycle', async (_req, res, next) => {
       const sortedHealth = [...healthItems].sort((a, b) => bySeverity[a.severity] - bySeverity[b.severity]);
       const health = { radarr: sortedHealth.filter((h) => h.source === 'radarr'), sonarr: sortedHealth.filter((h) => h.source === 'sonarr') };
 
-      const items = await Promise.all(
-        requests.filter((r) => r.mediaStatus !== 'deleted').map((r) => lifecycleFor(r, queueItems, health)),
-      );
-      const claimed = new Set(items.map((i) => i.queueId).filter(Boolean));
-      const orphans = queueItems.filter((q) => !claimed.has(q.id)).map(orphanLifecycleItem);
-      return { items: [...items, ...orphans] };
+      const items = await buildLifecycle(requests, queueItems, health, {
+        radarrEnabled: config.radarr.enabled,
+        sonarrEnabled: config.sonarr.enabled,
+        findByTmdbId: (tmdbId) => cached(`lifecycle:radarr:${tmdbId}`, 5 * 60_000, () => radarr.findByTmdbId(config.radarr, tmdbId)),
+        findByTvdbId: (tvdbId) => cached(`lifecycle:sonarr:${tvdbId}`, 5 * 60_000, () => sonarr.findByTvdbId(config.sonarr, tvdbId)),
+      });
+      return { items };
     });
     res.json(result);
   } catch (err) {
@@ -517,11 +397,21 @@ app.use((req, res, next) => {
   });
 });
 
-app.listen(config.port, () => {
-  const services = Object.entries(enabledServices())
-    .filter(([, on]) => on)
-    .map(([name]) => name);
-  console.log(`${config.title} listening on http://0.0.0.0:${config.port} (tz ${config.timeZone})`);
-  console.log(services.length ? `Connected services: ${services.join(', ')}` : 'No services configured yet — open the web UI to run the setup wizard.');
-  console.log(`Settings file: ${config.settingsFile}`);
-});
+// Exported so integration tests can mount `app` on their own listener
+// (a fixture DATA_DIR, mock upstreams) without this module also binding
+// the real configured port itself. Only bind here when this file is the
+// one actually launched -- `node server/index.js` / `--watch server/index.js`,
+// both of which set argv[1] to this file -- not when it's merely imported.
+export { app };
+
+const isMain = import.meta.url === `file://${process.argv[1]}`;
+if (isMain) {
+  app.listen(config.port, () => {
+    const services = Object.entries(enabledServices())
+      .filter(([, on]) => on)
+      .map(([name]) => name);
+    console.log(`${config.title} listening on http://0.0.0.0:${config.port} (tz ${config.timeZone})`);
+    console.log(services.length ? `Connected services: ${services.join(', ')}` : 'No services configured yet — open the web UI to run the setup wizard.');
+    console.log(`Settings file: ${config.settingsFile}`);
+  });
+}

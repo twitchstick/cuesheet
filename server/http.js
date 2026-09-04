@@ -23,8 +23,12 @@ export function assertReachableUrl(raw) {
   }
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (BLOCKED_HOSTS.has(host)) throw new UpstreamError('That address is not allowed', 400);
-  // 169.254.0.0/16 and its IPv6 equivalent fe80::/10, in any notation Node will parse.
-  if (/^169\.254\./.test(host) || /^fe[89ab][0-9a-f]:/i.test(host) || host === '::ffff:169.254.169.254') {
+  // 169.254.0.0/16 and its IPv6 equivalent fe80::/10, in any notation Node
+  // will parse. Anchored on both ends -- a *hostname* that merely starts
+  // with "169.254." (a real, if unlikely, DNS label) is not this address;
+  // only the literal dotted-quad is. A colon can't appear in a DNS
+  // hostname at all, so the IPv6 prefix match doesn't need the same care.
+  if (/^169\.254\.\d{1,3}\.\d{1,3}$/.test(host) || /^fe[89ab][0-9a-f]:/i.test(host) || host === '::ffff:169.254.169.254') {
     throw new UpstreamError('Link-local addresses are not allowed', 400);
   }
   return url.toString();

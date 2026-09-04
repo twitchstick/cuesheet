@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -11,7 +12,15 @@ permissions:
   packages: write
 
 jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
   build:
+    needs: checks
+    # A pull request only needs to pass checks -- it never gets an image
+    # pushed. Every other trigger here (a push to main, a version tag, a
+    # manual run) does.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
