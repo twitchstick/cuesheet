@@ -1,6 +1,6 @@
 import Poster from './Poster';
 import Section, { Empty } from './Section';
-import { bandwidth, playbackLabel, remainingCode, serviceTheme, sourceLabel, tally, timecode, totalBandwidth } from '../lib/format';
+import { bandwidth, playbackLabel, playbackTheme, remainingCode, serviceTheme, sourceLabel, tally, timecode, totalBandwidth } from '../lib/format';
 import type { Errors, Stream } from '../types';
 
 interface Props {
@@ -102,9 +102,7 @@ function StreamCard({ stream, onSelect }: { stream: Stream; onSelect?: (stream: 
   const theme = serviceTheme[stream.source];
   const light = tally(stream);
   const pct = Math.min(100, Math.max(0, stream.progress * 100));
-  const meta = [stream.quality, bandwidth(stream.bandwidthKbps), playbackLabel(stream), stream.location === 'remote' ? 'Remote' : null]
-    .filter(Boolean)
-    .join(' · ');
+  const meta = [stream.quality, bandwidth(stream.bandwidthKbps), stream.location === 'remote' ? 'Remote' : null].filter(Boolean).join(' · ');
 
   return (
     <article
@@ -157,9 +155,14 @@ function StreamCard({ stream, onSelect }: { stream: Stream; onSelect?: (stream: 
             <span className="text-fog-300">{timecode(stream.offsetMs)}</span>
             <span className={theme?.text ?? 'text-fog-300'}>{stream.durationMs ? remainingCode(stream.durationMs, stream.offsetMs) : `${Math.round(pct)}%`}</span>
           </div>
-          <p className="mt-1 truncate font-mono text-[11px] uppercase tracking-[0.1em] text-fog-500" title={meta}>
-            {meta}
-          </p>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <p className="truncate font-mono text-[11px] uppercase tracking-[0.1em] text-fog-500" title={meta}>
+              {meta}
+            </p>
+            <span className={`shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.06em] ${playbackTheme(stream)}`}>
+              {playbackLabel(stream)}
+            </span>
+          </div>
         </div>
       </div>
       <span className="sr-only">{sourceLabel[stream.source]}</span>

@@ -101,6 +101,14 @@ export function playbackLabel(stream: { transcoding: boolean; transcodeSpeed: nu
   return stream.transcodeSpeed !== null ? `Transcode ${stream.transcodeSpeed.toFixed(1)}×` : 'Transcode';
 }
 
+/** Color for the playback-method pill: green for the cheap path (direct
+ * play/stream), the accent theme color when the server is doing real work
+ * (transcoding), amber when it's neither of those but a problem -- buffering. */
+export function playbackTheme(stream: { transcoding: boolean; state: string }): string {
+  if (stream.state === 'buffering') return 'bg-tally-hold/15 text-tally-hold';
+  return stream.transcoding ? 'bg-accent-500/15 text-accent-300' : 'bg-emerald-400/15 text-emerald-300';
+}
+
 /** kbps as a human number: 5.4 Mbps, 820 kbps. */
 export function bandwidth(kbps: number | null | undefined): string | null {
   if (!kbps || kbps <= 0) return null;
