@@ -28,21 +28,32 @@ interface Props {
 }
 
 export default function Sidebar({ title, view, available, onNavigate, services }: Props) {
+  const settings = NAV.find((n) => n.view === 'setup')!;
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-night-900 px-4 py-6 lg:flex">
       <div className="px-2">
         <Logo title={title} />
       </div>
       <nav className="mt-8 flex flex-col gap-1">
-        {NAV.filter((n) => available.has(n.view)).map(({ view: v, label, icon: Icon }) => (
+        {NAV.filter((n) => n.view !== 'setup' && available.has(n.view)).map(({ view: v, label, icon: Icon }) => (
           <button key={v} type="button" className="nav-item" aria-current={view === v ? 'page' : undefined} onClick={() => onNavigate(v)}>
             <Icon className="h-4 w-4 text-fog-500" strokeWidth={1.75} />
             {label}
           </button>
         ))}
       </nav>
-      <div className="mt-auto">
+      {/* Settings sits below Services, set off by its own divider -- an
+          administrative page, not another item in the content nav above. */}
+      <div className="mt-auto flex flex-col gap-4">
         <ServicesCard services={services} />
+        {available.has('setup') && (
+          <div className="flex flex-col gap-1 border-t border-line pt-4">
+            <button type="button" className="nav-item" aria-current={view === settings.view ? 'page' : undefined} onClick={() => onNavigate(settings.view)}>
+              <settings.icon className="h-4 w-4 text-fog-500" strokeWidth={1.75} />
+              {settings.label}
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );
