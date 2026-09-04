@@ -112,6 +112,31 @@ describe('findByTmdbId', () => {
   });
 });
 
+describe('history', () => {
+  test('maps records, dropping unrecognized event types and sorting newest first', async () => {
+    mockFetch(
+      jsonRes([
+        { id: 1, eventType: 'grabbed', date: '2026-01-01T00:00:00Z', sourceTitle: 'Old release' },
+        { id: 2, eventType: 'downloadFolderImported', date: '2026-01-03T00:00:00Z' },
+        { id: 3, eventType: 'movieFileRenamed', date: '2026-01-02T00:00:00Z' },
+      ]),
+    );
+    const events = await radarr.history(cfg, 10);
+    assert.deepEqual(events.map((e) => e.id), ['radarr-history-2', 'radarr-history-1']);
+  });
+
+  test('a non-integer movieId short-circuits to an empty list without a request', async () => {
+    const calls = mockFetch([]);
+    assert.deepEqual(await radarr.history(cfg, 'DROP TABLE'), []);
+    assert.equal(calls.length, 0);
+  });
+
+  test('a non-array response is treated as no history, not a crash', async () => {
+    mockFetch(jsonRes({ not: 'an array' }));
+    assert.deepEqual(await radarr.history(cfg, 10), []);
+  });
+});
+
 describe('health', () => {
   test('keeps warnings and errors, drops notices', async () => {
     mockFetch(

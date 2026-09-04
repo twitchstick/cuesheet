@@ -14,6 +14,20 @@ export function timeAgo(ts: number, now = Date.now()): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/**
+ * A clock time, not a fuzzy "3h ago" -- for a timeline being read as a
+ * sequence of moments (the history strip), the actual time each thing
+ * happened matters more than roughly how long ago that was. The date is
+ * only added when it isn't today, so a same-day trace reads as pure times.
+ */
+export function eventTimestamp(ts: number, now = Date.now()): string {
+  if (!ts) return '';
+  const at = new Date(ts);
+  const time = at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (at.toDateString() === new Date(now).toDateString()) return time;
+  return `${at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
+}
+
 export function remaining(durationMs: number, offsetMs: number): string {
   const left = Math.max(0, durationMs - offsetMs);
   const mins = Math.ceil(left / 60_000);

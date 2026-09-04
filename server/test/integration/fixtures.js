@@ -106,6 +106,18 @@ export const radarrRoutes = {
     body: [{ id: 900, title: 'Harbor Lights', year: 2024, hasFile: false, monitored: true, digitalRelease: '2024-01-03' }],
   },
   'GET /api/v3/mediacover/10/poster-250.jpg': { body: TINY_JPEG, headers: { 'Content-Type': 'image/jpeg' } },
+  // A small real story, not one flat "grabbed" -- a low-quality release that
+  // failed, then a re-grab that's the one actually in the queue fixture
+  // above (still downloading, not imported yet -- consistent with it).
+  // Radarr/Sonarr's own history isn't paginated per-title, so this is the
+  // whole thing, oldest first.
+  'GET /api/v3/history/movie': {
+    body: [
+      { id: 1, eventType: 'grabbed', date: '2024-01-01T10:00:00Z', sourceTitle: 'Ember.and.Ash.2023.720p.WEB-DL-OLDGRP', data: { indexer: 'NewsHost' } },
+      { id: 2, eventType: 'downloadFailed', date: '2024-01-01T11:30:00Z', sourceTitle: 'Ember.and.Ash.2023.720p.WEB-DL-OLDGRP', data: { message: 'Sample' } },
+      { id: 3, eventType: 'grabbed', date: '2024-01-01T12:00:00Z', sourceTitle: 'Ember.and.Ash.2023.1080p.BluRay-GROUP', data: { indexer: 'Indexer1' } },
+    ],
+  },
 };
 
 export const sonarrRoutes = {
@@ -141,6 +153,13 @@ export const sonarrRoutes = {
         monitored: true,
         series: { title: 'Second Sun', network: 'Apollo TV' },
       },
+    ],
+  },
+  'GET /api/v3/history/series': {
+    body: [
+      { id: 1, eventType: 'grabbed', date: '2024-01-02T08:00:00Z', sourceTitle: 'Second.Sun.S01E04.720p-GROUP' },
+      { id: 2, eventType: 'downloadFailed', date: '2024-01-02T09:15:00Z', sourceTitle: 'Second.Sun.S01E04.720p-GROUP', data: { reason: 'No files found are eligible for import' } },
+      { id: 3, eventType: 'grabbed', date: '2024-01-02T10:00:00Z', sourceTitle: 'Second.Sun.S01E04.1080p-GROUP2', data: { indexer: 'Indexer2' } },
     ],
   },
 };

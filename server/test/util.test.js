@@ -12,6 +12,7 @@ import {
   queueProgress,
   queueStatus,
   queueMessage,
+  historyEvent,
 } from '../util.js';
 
 describe('pad2 / episodeCode', () => {
@@ -181,5 +182,52 @@ describe('queueMessage', () => {
   test('is null, not undefined or an empty string, when there is nothing to report', () => {
     assert.equal(queueMessage({}), null);
     assert.equal(queueMessage({ statusMessages: [] }), null);
+  });
+});
+
+describe('historyEvent', () => {
+  test('maps a grabbed record, prefixing the id with its source', () => {
+    const e = historyEvent(
+      { id: 5, eventType: 'grabbed', date: '2026-01-01T00:00:00Z', sourceTitle: 'Ember.and.Ash.2023.1080p-GROUP', data: { indexer: 'Indexer1' } },
+      'radarr',
+    );
+    assert.deepEqual(e, {
+      id: 'radarr-history-5',
+      type: 'grabbed',
+      at: Date.parse('2026-01-01T00:00:00Z'),
+      release: 'Ember.and.Ash.2023.1080p-GROUP',
+      indexer: 'Indexer1',
+      detail: null,
+    });
+  });
+
+  test('recognizes each of Radarr/Sonarr\'s own eventType spellings by substring, not an exact enum', () => {
+    assert.equal(historyEvent({ id: 1, eventType: 'grabbed' }, 'radarr').type, 'grabbed');
+    assert.equal(historyEvent({ id: 2, eventType: 'downloadFolderImported' }, 'radarr').type, 'imported');
+    assert.equal(historyEvent({ id: 3, eventType: 'downloadFailed' }, 'radarr').type, 'failed');
+    assert.equal(historyEvent({ id: 4, eventType: 'movieFileDeleted' }, 'radarr').type, 'deleted');
+    assert.equal(historyEvent({ id: 5, eventType: 'episodeFileDeleted' }, 'sonarr').type, 'deleted');
+    assert.equal(historyEvent({ id: 6, eventType: 'downloadIgnored' }, 'radarr').type, 'ignored');
+  });
+
+  test('folder-import/rename bookkeeping this does not narrate maps to null, not an unlabeled event', () => {
+    assert.equal(historyEvent({ id: 7, eventType: 'movieFileRenamed' }, 'radarr'), null);
+    assert.equal(historyEvent({ id: 8, eventType: 'unknown' }, 'radarr'), null);
+  });
+
+  test('a failure carries its message/reason as detail', () => {
+    assert.equal(historyEvent({ id: 9, eventType: 'downloadFailed', data: { message: 'Sample' } }, 'radarr').detail, 'Sample');
+    assert.equal(historyEvent({ id: 10, eventType: 'downloadFailed', data: { reason: 'No files found' } }, 'radarr').detail, 'No files found');
+  });
+
+  test('an undated/dataless record still maps, with 0 and nulls rather than throwing', () => {
+    assert.deepEqual(historyEvent({ id: 11, eventType: 'grabbed' }, 'sonarr'), {
+      id: 'sonarr-history-11',
+      type: 'grabbed',
+      at: 0,
+      release: null,
+      indexer: null,
+      detail: null,
+    });
   });
 });

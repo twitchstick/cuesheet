@@ -1,5 +1,5 @@
 import { fetchJson } from '../http.js';
-import { imageUrl, queueMessage, queueProgress, queueStatus } from '../util.js';
+import { historyEvent, imageUrl, queueMessage, queueProgress, queueStatus } from '../util.js';
 
 const headers = (cfg) => ({ 'X-Api-Key': cfg.apiKey });
 
@@ -117,6 +117,21 @@ export async function findByTmdbId(cfg, tmdbId) {
   const movie = Array.isArray(matches) ? matches[0] : null;
   if (!movie?.id) return null;
   return { id: movie.id, monitored: Boolean(movie.monitored), hasFile: Boolean(movie.hasFile) };
+}
+
+/**
+ * This movie's own grab/import/failure history, most recent first --
+ * Radarr's per-title record, not the app-wide activity log. Used for the
+ * signal trace's history strip, fetched on demand rather than on every poll.
+ */
+export async function history(cfg, movieId) {
+  if (!Number.isInteger(movieId)) return [];
+  const params = new URLSearchParams({ movieId: String(movieId) });
+  const records = await fetchJson(`${cfg.url}/api/v3/history/movie?${params}`, { headers: headers(cfg) });
+  return (Array.isArray(records) ? records : [])
+    .map((r) => historyEvent(r, 'radarr'))
+    .filter(Boolean)
+    .sort((a, b) => b.at - a.at);
 }
 
 /** Radarr's own self-check: dead indexers, an unreachable download client, low disk space. */

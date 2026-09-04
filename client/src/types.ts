@@ -199,6 +199,18 @@ export interface LifecycleItem extends MediaRequest {
   queueId: string | null;
 }
 
+/** One grab/import/failure off a title's own Radarr/Sonarr history -- the
+ * story behind its current stage, not just the stage itself. */
+export interface HistoryEvent {
+  id: string;
+  type: 'grabbed' | 'imported' | 'failed' | 'deleted' | 'ignored';
+  at: number;
+  /** The release Radarr/Sonarr grabbed, e.g. "Ember.and.Ash.2023.1080p.BluRay-GROUP". */
+  release: string | null;
+  indexer: string | null;
+  detail: string | null;
+}
+
 export type LinkIcon = 'link' | 'server' | 'shield' | 'activity' | 'hard-drive' | 'box' | 'download' | 'terminal' | 'globe';
 
 export interface QuickLink {

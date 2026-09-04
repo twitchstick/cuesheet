@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react';
+import HistoryStrip from './HistoryStrip';
 import Poster from './Poster';
 import { timeAgo, timeLeftLabel } from '../lib/format';
 import { useLiveProgress } from '../hooks/useLiveProgress';
@@ -207,6 +208,13 @@ export default function SignalTrace({ item, updatedAt, onSelect }: TraceProps) {
           );
         })}
       </div>
+
+      {((item.mediaType === 'movie' && item.tmdbId) || (item.mediaType === 'tv' && item.tvdbId)) && (
+        // Open from the start for a trace that's already flagged as a
+        // problem -- exactly the case where "why" is worth showing without
+        // making someone click for it.
+        <HistoryStrip item={item} defaultOpen={Boolean(item.downloadStatus && PROBLEM_STATUS.has(item.downloadStatus))} />
+      )}
     </article>
   );
 }

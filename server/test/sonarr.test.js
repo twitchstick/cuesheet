@@ -117,6 +117,27 @@ describe('findByTvdbId', () => {
   });
 });
 
+describe('history', () => {
+  test('maps records, dropping unrecognized event types and sorting newest first', async () => {
+    mockFetch(
+      jsonRes([
+        { id: 1, eventType: 'grabbed', date: '2026-01-01T00:00:00Z' },
+        { id: 2, eventType: 'downloadFailed', date: '2026-01-02T00:00:00Z', data: { message: 'Sample rejected' } },
+        { id: 3, eventType: 'seriesFolderImported', date: '2026-01-03T00:00:00Z' },
+      ]),
+    );
+    const events = await sonarr.history(cfg, 55);
+    assert.deepEqual(events.map((e) => e.id), ['sonarr-history-2', 'sonarr-history-1']);
+    assert.equal(events[0].detail, 'Sample rejected');
+  });
+
+  test('a non-integer seriesId short-circuits to an empty list without a request', async () => {
+    const calls = mockFetch([]);
+    assert.deepEqual(await sonarr.history(cfg, 'DROP TABLE'), []);
+    assert.equal(calls.length, 0);
+  });
+});
+
 describe('health', () => {
   test('keeps warnings and errors, drops notices', async () => {
     mockFetch(jsonRes([{ type: 'error', message: 'Indexers down' }, { type: 'notice', message: 'Update available' }]));

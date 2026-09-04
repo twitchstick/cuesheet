@@ -1,5 +1,5 @@
 import { fetchJson } from '../http.js';
-import { episodeCode, imageUrl, localDate, localTime, queueMessage, queueProgress, queueStatus } from '../util.js';
+import { episodeCode, historyEvent, imageUrl, localDate, localTime, queueMessage, queueProgress, queueStatus } from '../util.js';
 
 const headers = (cfg) => ({ 'X-Api-Key': cfg.apiKey });
 
@@ -121,6 +121,22 @@ export async function findByTvdbId(cfg, tvdbId) {
     // a per-episode breakdown isn't worth the extra request here.
     hasFile: Number(stats.episodeFileCount) > 0 && Number(stats.percentOfEpisodes) >= 100,
   };
+}
+
+/**
+ * This series' own grab/import/failure history, most recent first --
+ * whole-series like findByTvdbId's hasFile, not broken out per episode.
+ * Used for the signal trace's history strip, fetched on demand rather than
+ * on every poll.
+ */
+export async function history(cfg, seriesId) {
+  if (!Number.isInteger(seriesId)) return [];
+  const params = new URLSearchParams({ seriesId: String(seriesId) });
+  const records = await fetchJson(`${cfg.url}/api/v3/history/series?${params}`, { headers: headers(cfg) });
+  return (Array.isArray(records) ? records : [])
+    .map((r) => historyEvent(r, 'sonarr'))
+    .filter(Boolean)
+    .sort((a, b) => b.at - a.at);
 }
 
 /** Sonarr's own self-check: dead indexers, an unreachable download client, low disk space. */

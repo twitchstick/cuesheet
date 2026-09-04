@@ -31,6 +31,32 @@ test('Requests (#/requests) traces only the items that came from a Seerr request
   await expect(page.getByText('Redline')).not.toBeVisible();
 });
 
+test('a trace card\'s History expands in place without opening the detail panel', async ({ page }) => {
+  // Downloads (unlike Requests) renders the whole trace card as one
+  // clickable button that opens the detail panel -- exactly where History's
+  // own click has to stay contained, or it'd open the panel instead of
+  // just expanding.
+  await page.goto('/#/queue');
+  const card = page.locator('article', { hasText: 'Ember & Ash' });
+  await expect(card.getByText('Grabbed')).not.toBeVisible();
+
+  await card.getByRole('button', { name: /history/i }).click();
+  // Scoped to the history list, not the card as a whole -- the trace's own
+  // stage arc already has its own "Requested" waypoint label above this.
+  const history = card.locator('ul');
+  // Radarr's own history (fetched on this click) plus the request's own
+  // start, which Cuesheet already had -- both present, so the fetch and
+  // the merge both actually happened, not just the toggle.
+  await expect(history.getByText('Requested', { exact: true })).toBeVisible();
+  await expect(history.getByText('by Riley')).toBeVisible();
+  await expect(history.getByText('Grabbed').first()).toBeVisible();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+
+  // Clicking the card anywhere else still opens it normally.
+  await card.getByText('Ember & Ash', { exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+});
+
 // Release Calendar isn't covered here: its default window is "this week,
 // relative to whenever the test runs," which the fixed-date fixtures
 // (server/test/integration/fixtures.js) can't line up with deterministically

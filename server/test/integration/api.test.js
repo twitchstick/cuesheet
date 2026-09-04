@@ -202,6 +202,30 @@ describe('/api/lifecycle (Seerr requests correlated with Radarr/Sonarr queues)',
   });
 });
 
+describe('/api/lifecycle/history (on-demand, behind a click)', () => {
+  test('a movie resolves its Radarr history via tmdbId, newest first', async () => {
+    const { body } = await get('/api/lifecycle/history?mediaType=movie&tmdbId=10');
+    assert.equal(body.items.length, 3);
+    assert.deepEqual(body.items.map((e) => e.type), ['grabbed', 'failed', 'grabbed'], 'the re-grab is the most recent event, so it comes first');
+  });
+
+  test('a series resolves its Sonarr history via tvdbId', async () => {
+    const { body } = await get('/api/lifecycle/history?mediaType=tv&tvdbId=99');
+    assert.equal(body.items.length, 3);
+    assert.equal(body.items[0].release, 'Second.Sun.S01E04.1080p-GROUP2');
+  });
+
+  test('rejects a request with no usable mediaType', async () => {
+    const { status } = await get('/api/lifecycle/history?tmdbId=10');
+    assert.equal(status, 400);
+  });
+
+  test('rejects a movie request with no tmdbId', async () => {
+    const { status } = await get('/api/lifecycle/history?mediaType=movie');
+    assert.equal(status, 400);
+  });
+});
+
 describe('/api/requests (Seerr only)', () => {
   test('lists recent requests with poster/title resolved from Seerr’s detail endpoint', async () => {
     const { body } = await get('/api/requests');

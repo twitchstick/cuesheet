@@ -1,4 +1,4 @@
-import type { AppConfig, AuthStatus, CalendarItem, DownloadClientStats, DownloadItem, Errors, LifecycleItem, MediaDetail, MediaRequest, QuickLink, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
+import type { AppConfig, AuthStatus, CalendarItem, DownloadClientStats, DownloadItem, Errors, HistoryEvent, LifecycleItem, MediaDetail, MediaRequest, QuickLink, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
 
 export class ApiError extends Error {
   status: number;
@@ -40,6 +40,13 @@ export const api = {
   saveLinks: (items: QuickLink[]) => get<{ items: QuickLink[] }>('/api/links', json('PUT', { items })),
   requests: () => get<{ items: MediaRequest[] }>('/api/requests'),
   lifecycle: () => get<{ items: LifecycleItem[] }>('/api/lifecycle'),
+  // Fetched behind a click, not on every poll -- see server/routes/dashboard.js.
+  lifecycleHistory: (item: Pick<LifecycleItem, 'mediaType' | 'tmdbId' | 'tvdbId'>) => {
+    const params = new URLSearchParams({ mediaType: item.mediaType });
+    const id = item.mediaType === 'movie' ? item.tmdbId : item.tvdbId;
+    if (id != null) params.set(item.mediaType === 'movie' ? 'tmdbId' : 'tvdbId', String(id));
+    return get<{ items: HistoryEvent[] }>(`/api/lifecycle/history?${params}`);
+  },
   setupStatus: () => get<SetupStatus>('/api/setup/status'),
   settings: () => get<Settings>('/api/settings'),
   saveSettings: (patch: unknown) => get<{ settings: Settings; config: AppConfig }>('/api/settings', json('PUT', patch)),

@@ -71,3 +71,41 @@ export function queueMessage(record) {
   const messages = Array.isArray(record.statusMessages) ? record.statusMessages.flatMap((m) => m.messages ?? []) : [];
   return messages[0] ?? record.errorMessage ?? null;
 }
+
+// Radarr/Sonarr's own eventType strings, collapsed onto the handful the
+// history strip actually narrates. Matched by substring rather than an
+// exact enum: the two apps don't share identical spellings (Radarr's
+// "movieFileDeleted" vs Sonarr's "episodeFileDeleted", say), and matching
+// loosely is safer than hard-coding a list this couldn't be tested against
+// a live instance for. "imported" is narrower than the rest -- it must
+// start with "download", so a real download-completion import doesn't
+// collide with "movieFolderImported"/"seriesFolderImported" (found files
+// already on disk, nothing this trace's request drove) or a rename.
+// Anything left unmatched is dropped rather than shown as an unlabeled event.
+const HISTORY_TYPE = [
+  [/^grab/i, 'grabbed'],
+  [/fail/i, 'failed'],
+  [/^download.*import/i, 'imported'],
+  [/delet/i, 'deleted'],
+  [/ignor/i, 'ignored'],
+];
+
+/**
+ * One grabbed/imported/failed/deleted/ignored event off a Radarr/Sonarr
+ * history record, or null for anything this doesn't narrate. `data.message`/
+ * `data.reason` aren't precisely documented across Servarr versions, so
+ * this reads them defensively rather than assuming one exact shape.
+ */
+export function historyEvent(record, source) {
+  const type = HISTORY_TYPE.find(([re]) => re.test(String(record.eventType ?? '')))?.[1];
+  if (!type) return null;
+  const data = record.data ?? {};
+  return {
+    id: `${source}-history-${record.id}`,
+    type,
+    at: record.date ? new Date(record.date).getTime() : 0,
+    release: record.sourceTitle || null,
+    indexer: data.indexer || null,
+    detail: data.message || data.reason || null,
+  };
+}

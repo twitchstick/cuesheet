@@ -163,4 +163,37 @@ router.get('/lifecycle', async (_req, res, next) => {
   }
 });
 
+/**
+ * On-demand history for one trace, behind a click rather than bundled into
+ * every /api/lifecycle poll -- fetching it for every active request on every
+ * refresh would mean N extra Radarr/Sonarr calls apiece for a card most of
+ * them will never open. Shares /api/lifecycle's own cache keys for the
+ * tmdbId/tvdbId -> internal id lookup, so this is a cache hit whenever that
+ * poll has already resolved the same title recently (almost always).
+ */
+router.get('/lifecycle/history', async (req, res, next) => {
+  try {
+    const mediaType = req.query.mediaType;
+    if (mediaType !== 'movie' && mediaType !== 'tv') return res.status(400).json({ error: 'mediaType must be movie or tv' });
+
+    if (mediaType === 'movie') {
+      if (!config.radarr.enabled) return res.status(404).json({ error: 'Radarr is not connected' });
+      const tmdbId = Number(req.query.tmdbId);
+      if (!Number.isInteger(tmdbId)) return res.status(400).json({ error: 'tmdbId is required' });
+      const found = await cached(`lifecycle:radarr:${tmdbId}`, 5 * 60_000, () => radarr.findByTmdbId(config.radarr, tmdbId));
+      const items = found ? await cached(`lifecycle-history:radarr:${found.id}`, 5 * 60_000, () => radarr.history(config.radarr, found.id)) : [];
+      return res.json({ items });
+    }
+
+    if (!config.sonarr.enabled) return res.status(404).json({ error: 'Sonarr is not connected' });
+    const tvdbId = Number(req.query.tvdbId);
+    if (!Number.isInteger(tvdbId)) return res.status(400).json({ error: 'tvdbId is required' });
+    const found = await cached(`lifecycle:sonarr:${tvdbId}`, 5 * 60_000, () => sonarr.findByTvdbId(config.sonarr, tvdbId));
+    const items = found ? await cached(`lifecycle-history:sonarr:${found.id}`, 5 * 60_000, () => sonarr.history(config.sonarr, found.id)) : [];
+    res.json({ items });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
