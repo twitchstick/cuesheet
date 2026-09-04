@@ -199,7 +199,7 @@ export default function SignalTrace({ item, updatedAt, onSelect }: TraceProps) {
                 {s.label}
               </span>
               {i === 0 && item.createdAt > 0 && (
-                <span className="mt-0.5 block text-xs text-fog-700">
+                <span className="mt-0.5 block text-xs text-fog-500">
                   {new Date(item.createdAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
                 </span>
               )}

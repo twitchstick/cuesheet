@@ -515,7 +515,7 @@ function ServiceCard({
             {test.ok ? `Connected to ${test.name}${test.version ? ` (${test.version})` : ''}` : test.error}
           </span>
         )}
-        {!test && !filled && <span className="text-xs text-fog-700">Leave blank to skip</span>}
+        {!test && !filled && <span className="text-xs text-fog-500">Leave blank to skip</span>}
       </div>
     </div>
   );

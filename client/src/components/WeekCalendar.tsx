@@ -97,7 +97,7 @@ export default function WeekCalendar({ start, today, items, errors, loading, onS
           );
         })}
       </div>
-      {!loading && items && items.length === 0 && <p className="mt-3 text-center text-xs text-fog-700">{isCurrentWeek ? 'Nothing scheduled this week.' : 'Nothing scheduled that week.'}</p>}
+      {!loading && items && items.length === 0 && <p className="mt-3 text-center text-xs text-fog-500">{isCurrentWeek ? 'Nothing scheduled this week.' : 'Nothing scheduled that week.'}</p>}
     </Section>
   );
 }
@@ -138,7 +138,7 @@ function DayList({ count, children }: { count: number; children: React.ReactNode
         type="button"
         onClick={nudge}
         title={`${count} releases this day`}
-        className="absolute inset-x-0 bottom-0 mx-auto flex h-6 w-full items-center justify-center gap-1 rounded-b-lg text-[10px] font-bold uppercase tracking-wider text-fog-300 hover:text-fog-100"
+        className="absolute inset-x-0 bottom-0 mx-auto flex h-6 w-full items-center justify-center gap-1 rounded-b-lg text-[11px] font-bold uppercase tracking-wider text-fog-300 hover:text-fog-100"
       >
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${atEnd ? 'rotate-180' : ''}`} />
         {atEnd ? 'Back to top' : `${count} releases`}

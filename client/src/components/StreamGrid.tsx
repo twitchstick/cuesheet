@@ -28,7 +28,7 @@ export default function StreamGrid({ streams, errors, loading, onSelect }: Props
         <Empty>Nothing is playing right now.</Empty>
       ) : (
         <>
-          <Summary streams={streams!} />
+          <Summary streams={streams!} onSelect={onSelect} />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {streams!.map((s) => (
               <StreamCard key={s.id} stream={s} onSelect={onSelect} />
@@ -41,11 +41,11 @@ export default function StreamGrid({ streams, errors, loading, onSelect }: Props
 }
 
 /** The running totals, read as instrument readouts rather than decorated tiles. */
-function Summary({ streams }: { streams: Stream[] }) {
+function Summary({ streams, onSelect }: { streams: Stream[]; onSelect?: (stream: Stream) => void }) {
   const total = totalBandwidth(streams);
   const remote = totalBandwidth(streams.filter((s) => s.location === 'remote'));
   const local = totalBandwidth(streams.filter((s) => s.location !== 'remote'));
-  const attention = streams.filter((s) => s.attention).length;
+  const needsAttention = streams.filter((s): s is Stream & { attention: string } => Boolean(s.attention));
 
   const readouts: [string, string][] = [
     ['Plex', String(streams.filter((s) => s.source === 'plex').length)],
@@ -64,13 +64,24 @@ function Summary({ streams }: { streams: Stream[] }) {
               <dd className="mt-0.5 font-mono text-lg font-medium leading-none tabular-nums">{n}</dd>
             </div>
           ))}
-        {attention > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-tally-hold" />
-            <span className="text-xs text-tally-hold">
-              {attention} need{attention === 1 ? 's' : ''} attention
+        {needsAttention.length > 0 && (
+          // Clicking opens the flagged session itself -- a count on its own
+          // was a dead end (which one? why?) when that answer was one tap
+          // away the whole time. Exactly one flagged session says so by name.
+          <button
+            type="button"
+            onClick={onSelect ? () => onSelect(needsAttention[0]) : undefined}
+            disabled={!onSelect}
+            title={needsAttention.map((s) => `${s.title}: ${s.attention}`).join(' · ')}
+            className="flex items-center gap-2 text-left disabled:cursor-default"
+          >
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-tally-hold" />
+            <span className={`text-xs text-tally-hold ${onSelect ? 'underline decoration-tally-hold/40 decoration-dotted underline-offset-4 hover:decoration-tally-hold' : ''}`}>
+              {needsAttention.length === 1
+                ? `${needsAttention[0].title} is ${needsAttention[0].attention.toLowerCase()}`
+                : `${needsAttention.length} need attention`}
             </span>
-          </div>
+          </button>
         )}
       </dl>
 
@@ -146,7 +157,7 @@ function StreamCard({ stream, onSelect }: { stream: Stream; onSelect?: (stream: 
             <span className="text-fog-300">{timecode(stream.offsetMs)}</span>
             <span className={theme?.text ?? 'text-fog-300'}>{stream.durationMs ? remainingCode(stream.durationMs, stream.offsetMs) : `${Math.round(pct)}%`}</span>
           </div>
-          <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.1em] text-fog-500" title={meta}>
+          <p className="mt-1 truncate font-mono text-[11px] uppercase tracking-[0.1em] text-fog-500" title={meta}>
             {meta}
           </p>
         </div>

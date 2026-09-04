@@ -117,7 +117,7 @@ export default function MonthCalendar({ month, today, items, errors, loading, on
                         }`}
                       >
                         <p className="truncate text-[11px] font-semibold leading-tight">{item.title}</p>
-                        <p className="truncate font-mono text-[10px] text-fog-500">
+                        <p className="truncate font-mono text-[11px] text-fog-500">
                           {radarr ? (item.event ?? 'Release') : item.subtitle.split(' · ')[0]}
                           {!radarr && item.time ? ` ${formatTime24to12(item.time)}` : ''}
                           {item.hasFile ? ' ✓' : ''}
@@ -127,13 +127,13 @@ export default function MonthCalendar({ month, today, items, errors, loading, on
                   );
                 })}
               </ul>
-              {list.length > 3 && <p className="label mt-1 !text-[9px]">{list.length} releases</p>}
+              {list.length > 3 && <p className="label mt-1">{list.length} releases</p>}
             </div>
           );
         })}
       </div>
 
-      {!loading && total === 0 && <p className="mt-3 text-center text-xs text-fog-700">Nothing scheduled in {label}.</p>}
+      {!loading && total === 0 && <p className="mt-3 text-center text-xs text-fog-500">Nothing scheduled in {label}.</p>}
     </Section>
   );
 }
@@ -144,7 +144,7 @@ function DayNumber({ date, outside, isToday }: { date: Date; outside: boolean; i
       <span className={`font-mono text-xs tabular-nums ${isToday ? 'font-bold text-accent-300' : outside ? 'text-fog-700' : 'text-fog-300'}`}>
         {String(date.getDate()).padStart(2, '0')}
       </span>
-      <span className="label !text-[9px] md:hidden">{date.toLocaleDateString(undefined, { weekday: 'short' })}</span>
+      <span className="label md:hidden">{date.toLocaleDateString(undefined, { weekday: 'short' })}</span>
       {isToday && <span className="label !text-accent-300">Today</span>}
     </div>
   );

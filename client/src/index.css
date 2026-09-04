@@ -57,9 +57,12 @@ body {
     @apply rounded-xl border border-line bg-night-700 px-4 py-3;
   }
 
-  /* Small caps caption used for every readout label. */
+  /* Small caps caption used for every readout label. 11px is the practical
+     floor for a screen this app is also meant to work as (a wall-mounted
+     display, an ordinary laptop) -- 10px reads fine in a screenshot and
+     poorly from a few feet away. */
   .label {
-    @apply font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-fog-500;
+    @apply font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-fog-500;
   }
 
   .chip {

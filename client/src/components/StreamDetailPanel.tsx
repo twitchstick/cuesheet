@@ -116,7 +116,7 @@ export default function StreamDetailPanel({ stream, onClose }: Props) {
         </PanelSection>
       ) : (
         <PanelSection title="Signal path">
-          <p className="text-sm text-fog-700">This server did not report the technical details for this session.</p>
+          <p className="text-sm text-fog-500">This server did not report the technical details for this session.</p>
         </PanelSection>
       )}
 

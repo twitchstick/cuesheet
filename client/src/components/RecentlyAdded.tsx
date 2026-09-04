@@ -131,7 +131,7 @@ function Card({ item, onSelect }: { item: RecentItem; onSelect?: (item: RecentIt
           kind={item.type === 'movie' ? 'movie' : 'tv'}
           className="shadow-poster transition-transform duration-200 group-hover/card:-translate-y-0.5"
         />
-        <span className="absolute right-2 top-2 rounded-md bg-night-950/75 px-1.5 py-0.5 text-[10px] font-medium text-fog-300 backdrop-blur">{timeAgo(item.addedAt)}</span>
+        <span className="absolute right-2 top-2 rounded-md bg-night-950/75 px-1.5 py-0.5 text-[11px] font-medium text-fog-300 backdrop-blur">{timeAgo(item.addedAt)}</span>
       </div>
       <figcaption className="mt-2.5 text-left">
         <p className="truncate text-sm font-semibold leading-tight" title={item.title}>

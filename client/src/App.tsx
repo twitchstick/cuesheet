@@ -264,7 +264,7 @@ export default function App() {
           <ServicesCard services={d.health} />
         </div>
 
-        <footer className="mt-10 text-center text-[11px] text-fog-700">
+        <footer className="mt-10 text-center text-[11px] text-fog-500">
           {title}
           {d.streams.updatedAt ? ` · updated ${new Date(d.streams.updatedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : ''}
         </footer>
