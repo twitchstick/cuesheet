@@ -104,11 +104,18 @@ export function useDashboardData(view: View) {
     return [...items].sort((a, b) => (DOWNLOAD_PRIORITY[a.downloadStatus ?? a.stage] ?? 9) - (DOWNLOAD_PRIORITY[b.downloadStatus ?? b.stage] ?? 9));
   }, [requests.data]);
 
+  // Recently Requested reads the same lifecycle poll -- newest ask first,
+  // orphaned queue rows (no request behind them) excluded like Requests itself.
+  const recentlyRequested = useMemo(() => {
+    const items = (requests.data?.items ?? []).filter((r) => r.fromRequest);
+    return [...items].sort((a, b) => b.createdAt - a.createdAt);
+  }, [requests.data]);
+
   return {
     config, setConfig, configError, setup, setSetup, now, today,
     hasMediaServer, hasCalendar, hasQueue, hasSeerr,
     streams, recent, calendar, monthCalendar, queue, requests, links,
     weekOffset, setWeekOffset, weekStart, month, setMonth,
-    health, available, nothingConfigured, downloadItems,
+    health, available, nothingConfigured, downloadItems, recentlyRequested,
   };
 }

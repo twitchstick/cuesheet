@@ -62,8 +62,10 @@ export default function RecentlyAdded({ items, errors, loading, limit = 15, full
   );
 }
 
-/** A horizontally scrolling strip with arrows that appear only when there is more to see. */
-function ScrollRow({ children }: { children: React.ReactNode }) {
+/** A horizontally scrolling strip with arrows that appear only when there is
+ * more to see. Exported for Recently Requested, which shares this exact
+ * scroll-row treatment. */
+export function ScrollRow({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: false, end: false });
 

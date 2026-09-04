@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import RecentlyAdded from './components/RecentlyAdded';
+import RecentlyRequested from './components/RecentlyRequested';
 import DownloadQueue from './components/DownloadQueue';
 import QuickLinks from './components/QuickLinks';
 import SetupWizard from './components/SetupWizard';
@@ -218,6 +219,7 @@ export default function App() {
               {d.hasMediaServer && (
                 <RecentlyAdded items={d.recent.data?.items ?? null} errors={d.recent.data?.errors ?? null} loading={d.recent.loading} limit={d.config?.recentLimit ?? 15} onSelect={openRecent} />
               )}
+              {d.hasSeerr && <RecentlyRequested items={d.recentlyRequested} loading={d.requests.loading} onOpen={() => navigate('requests')} />}
               {/* Release calendar, download queue and requests are all "check when
                   curious" rather than "glance right now" -- and each already has its
                   own full tab -- so on a phone, where they stack into a long scroll

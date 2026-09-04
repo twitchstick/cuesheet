@@ -13,6 +13,18 @@ test('loads the dashboard with data from every configured service', async ({ pag
   await expect(page.getByText('Nova')).toBeVisible();
 });
 
+test('Recently requested (overview) opens Requests on click, not a per-item detail panel', async ({ page }) => {
+  await page.goto('/');
+  const section = page.locator('section', { hasText: 'Recently requested' });
+  await expect(section.getByText('Ember & Ash')).toBeVisible();
+
+  await section.getByRole('button', { name: /Ember & Ash/ }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  // Landed on the Requests tab -- the full trace, not a media detail panel.
+  await expect(page).toHaveURL(/#\/requests$/);
+  await expect(page.getByText('What the house has asked for, traced from ask to available')).toBeVisible();
+});
+
 test('Downloads (#/queue) shows the full signal trace for every queue item, matched and orphaned alike', async ({ page }) => {
   await page.goto('/#/queue');
   await expect(page.getByText('Download queue')).toBeVisible();
