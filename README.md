@@ -112,75 +112,22 @@ The container starts as root only to make `/config` owned by `PUID:PGID` (defaul
 
 ## Security
 
-By default, Cuesheet has no accounts and no sign-in: anyone who can open the
-page sees the dashboard and can change its settings. It is built to sit on a
+By default, Cuesheet has no accounts and no sign-in: anyone who can reach the
+page sees the dashboard and can change its settings. It's built to sit on a
 home network behind your router, not on the open internet.
 
-### Optional admin password
+An optional admin password can lock the whole app behind a login instead —
+set it from Settings → Security, or bootstrap it with `ADMIN_PASSWORD` (env
+var or `_FILE`, same as the service credentials above) before first boot. A
+session lasts until you log out; wrong attempts are rate-limited; the
+password is hashed before it ever reaches disk. It doesn't add HTTPS,
+though — terminate TLS at a reverse proxy if this ever leaves your LAN.
 
-Set one password to require login for the whole app — every page, not just
-Settings. There are no accounts and no per-user permissions, just the one
-shared password and a session per device that logged in with it.
-
-- **Set it** from Settings → Security once Cuesheet is running, or bootstrap
-  it with `ADMIN_PASSWORD=your-password` (or the `_FILE` secrets convention
-  above) before first boot. An env var always wins over one saved through
-  Settings — the deliberate recovery path if you forget it: set the
-  environment variable and restart.
-- **A session lasts until you log out** on that device — there's no
-  automatic expiry — though browsers themselves cap how long they'll hold
-  onto any cookie (around 400 days), so a device left logged in for over a
-  year will eventually need to log in again anyway.
-- **Wrong-password attempts are rate-limited** (10 per 15 minutes per
-  address) and the password itself is hashed (scrypt) before it's ever
-  written to `settings.json` — never stored in plain text, unlike the
-  service credentials next to it.
-- **This does not add HTTPS.** The session cookie is `HttpOnly` and
-  `SameSite=Strict`, but travels in plain text like everything else Cuesheet
-  sends unless you terminate TLS at a reverse proxy — enough to keep a
-  password screen honest against someone who reaches the page, not against
-  someone who can already read your LAN's traffic.
-
-What it still does carefully:
-
-- **Credentials stay server-side.** Service keys live in `settings.json`
-  (mode `0600`) inside the config volume and are never returned to the browser —
-  the settings API reports only whether a key is set.
-- **Credentials can skip the settings file entirely.** Set `RADARR_API_KEY`,
-  `PLEX_TOKEN` and the like as plain environment variables, or as Docker/Compose
-  secrets via `RADARR_API_KEY_FILE=/run/secrets/radarr_api_key` (any `*_FILE`
-  variable wins over its plain counterpart if both are set) — configure
-  everything this way and the setup wizard never has to write anything to disk.
-- **Artwork from your servers is proxied**, so the browser never holds a
-  credential, the proxy only ever returns a bitmap, and it caps how much it
-  will pull down. Request artwork loads from TMDB in the browser, the same as
-  Overseerr does it.
-- **Link-local addresses are refused.** Cuesheet talks to private addresses by
-  design, but `169.254.0.0/16` and the cloud metadata hostnames are blocked, so
-  the open connection test cannot be turned into a probe for them. Redirects
-  are followed by Cuesheet itself and every hop is re-checked.
-- **Every response from a configured service is capped**, not just artwork —
-  a Plex, Radarr, Sonarr, Seerr or SABnzbd instance that hands back an
-  oversized or malformed body can't run the server out of memory.
-- **Cross-site writes are rejected.** A settings change arriving with another
-  site's Origin is refused, which closes the drive-by and DNS-rebinding routes
-  into an app with no sign-in.
-- **A connection test will not send a stored key to a different host.**
-  Retesting a saved service reuses its key only when the URL still points at
-  that same server.
-- **Response headers** set a content security policy, `nosniff`,
-  `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`.
-- **Quick links are navigation, not a fetch.** Cuesheet's server never
-  requests them — clicking one is your browser opening a new tab, exactly
-  like typing the address yourself — but the address is still checked on
-  save so it can only be an `http://` or `https://` link.
-
-What is left to you:
-
-- **Do not expose it to the internet**, admin password or not — it's a
-  deterrent for anyone who reaches the page over plain HTTP, not a
-  substitute for a VPN or a reverse proxy doing real authentication and TLS.
-- **There is no HTTPS.** Terminate TLS at a reverse proxy if it leaves your LAN.
+Service credentials stay server-side and are never returned to the browser;
+artwork from your own servers is proxied so the browser never holds a
+credential either. The full picture — link-local blocking, response size
+caps, cross-site write protection, and what's still left to you as the
+operator — is in the [security policy](SECURITY.md).
 
 Run `npm audit` in both the root and `client/` after changing dependencies;
 both are expected to report zero vulnerabilities.
@@ -195,11 +142,13 @@ npm run dev           # server on :3000, Vite client on :5173 (proxied to /api)
 
 `npm run build` builds the client into `client/dist`; `npm start` serves it from the Express server.
 
+`npm test` runs the server test suite (unit tests plus real HTTP integration tests against a fake upstream stack); `npm run test:e2e` runs Playwright at desktop and mobile widths; `npm run lint` covers server, client and e2e code. All three run in CI on every push and pull request, gating the Docker image build.
+
 ## How it works
 
-- `server/` – Express. One adapter per service under `server/services/`. `/api/streams`, `/api/recent` and `/api/calendar` fan out to every configured source and return `{ items, errors }`, so a single unreachable service shows a small warning instead of breaking the page. Responses are cached briefly (5 s for streams, minutes for the rest) and stale data is served if an upstream errors.
+- `server/` – Express, split into routes per concern (dashboard, settings, media, auth) with one adapter per service under `server/services/`. `/api/streams`, `/api/recent` and `/api/calendar` fan out to every configured source and return `{ items, errors }`, so a single unreachable service shows a small warning instead of breaking the page. Responses are cached briefly (5 s for streams, minutes for the rest) and stale data is served if an upstream errors.
 - `/api/image` – proxies posters from Plex, Jellyfin, Radarr and Sonarr so credentials are never sent to the browser. Request results use public TMDB poster URLs.
-- `/api/settings` – read (secrets masked), update and test connections from the setup wizard; `server/config.js` merges env defaults with `settings.json`.
+- `/api/settings` – read (secrets masked), update and test connections from the setup wizard; `server/config.js` merges env defaults with `settings.json`. The optional admin password lives alongside it, in `server/auth.js`.
 - `client/` – React + Vite + Tailwind. Polling pauses when the tab is hidden and resumes immediately when it becomes visible, which suits a wall-mounted display.
 
 ## Project
