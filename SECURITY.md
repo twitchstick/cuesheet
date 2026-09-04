@@ -26,6 +26,10 @@ needs to be reachable from outside.
 - Service keys live in `settings.json` (mode `0600`) inside the config volume
   and are never returned to the browser — the settings API reports only whether
   a key is set.
+- Credentials can bypass that file entirely: any `*_API_KEY`/`*_TOKEN` env var
+  also accepts a `_FILE` suffix (`RADARR_API_KEY_FILE=/run/secrets/radarr_api_key`)
+  pointing at a Docker/Compose secret, taking precedence over the plain variable
+  if both are set.
 - Poster art from your media servers is proxied so the browser never holds a
   credential, and the proxy refuses to return anything that is not a bitmap.
   Artwork for request results loads from TMDB in the browser, the same as

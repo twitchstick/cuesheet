@@ -82,6 +82,62 @@ describe('booting from environment variables alone', () => {
   });
 });
 
+describe('Docker/Compose secrets (${KEY}_FILE)', () => {
+  test('reads a credential from a mounted secret file instead of a plain env var', () => {
+    const fresh = mkdtempSync(path.join(tmpdir(), 'cuesheet-boot-secretfile-'));
+    try {
+      const secretPath = path.join(fresh, 'radarr_api_key');
+      writeFileSync(secretPath, 'from-the-secret-file\n'); // a trailing newline, same as `docker secret` files have
+      const { config } = boot(fresh, { RADARR_URL: 'http://10.0.0.5:7878', RADARR_API_KEY_FILE: secretPath });
+      assert.equal(config.radarr.apiKey, 'from-the-secret-file'); // trimmed
+      assert.equal(config.radarr.enabled, true);
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+
+  test('the secret file wins when both it and the plain env var are set', () => {
+    const fresh = mkdtempSync(path.join(tmpdir(), 'cuesheet-boot-secretfile-both-'));
+    try {
+      const secretPath = path.join(fresh, 'radarr_api_key');
+      writeFileSync(secretPath, 'file-value');
+      const { config } = boot(fresh, { RADARR_URL: 'http://10.0.0.5:7878', RADARR_API_KEY: 'plain-value', RADARR_API_KEY_FILE: secretPath });
+      assert.equal(config.radarr.apiKey, 'file-value');
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+
+  test('a _FILE pointing at a missing file falls back to the plain env var, not a crash', () => {
+    const fresh = mkdtempSync(path.join(tmpdir(), 'cuesheet-boot-secretfile-missing-'));
+    try {
+      const { config } = boot(fresh, {
+        RADARR_URL: 'http://10.0.0.5:7878',
+        RADARR_API_KEY: 'fallback-value',
+        RADARR_API_KEY_FILE: path.join(fresh, 'does-not-exist'),
+      });
+      assert.equal(config.radarr.apiKey, 'fallback-value');
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+
+  test('a _FILE pointing at a missing file with no fallback var leaves the service unconfigured, not crashed', () => {
+    const fresh = mkdtempSync(path.join(tmpdir(), 'cuesheet-boot-secretfile-missing-none-'));
+    try {
+      const { config, anyServiceConfigured } = boot(fresh, {
+        RADARR_URL: 'http://10.0.0.5:7878',
+        RADARR_API_KEY_FILE: path.join(fresh, 'does-not-exist'),
+      });
+      assert.equal(config.radarr.apiKey, '');
+      assert.equal(config.radarr.enabled, false); // url alone isn't enough
+      assert.equal(anyServiceConfigured, false);
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('a hand-edited (never-validated) settings.json', () => {
   test('an out-of-range recentLimit is clamped at boot instead of crashing or being trusted as-is', () => {
     const fresh = mkdtempSync(path.join(tmpdir(), 'cuesheet-boot-clamp-'));

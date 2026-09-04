@@ -9,6 +9,27 @@ const num = (key, fallback) => {
 };
 const stripSlash = (url) => String(url ?? '').trim().replace(/\/+$/, '');
 
+/**
+ * Like env(), but for credentials: also honors the Docker/Compose secrets
+ * convention of `${KEY}_FILE` pointing at a file whose contents are the
+ * real value (e.g. a secret mounted at /run/secrets/radarr_api_key), so a
+ * credential never has to sit in a plain environment variable -- visible to
+ * `docker inspect`, a process listing, or anything else with a view into
+ * the container's environment. Takes precedence if both happen to be set.
+ */
+function envSecret(key, fallback = '') {
+  const filePath = process.env[`${key}_FILE`];
+  if (filePath) {
+    if (process.env[key]) console.warn(`Both ${key} and ${key}_FILE are set -- using ${key}_FILE.`);
+    try {
+      return fs.readFileSync(filePath, 'utf8').trim();
+    } catch (err) {
+      console.warn(`Could not read ${key}_FILE (${filePath}): ${err.message}`);
+    }
+  }
+  return env(key, fallback);
+}
+
 /** The app's name is fixed — it is the product, not a preference. */
 export const APP_TITLE = 'Cuesheet';
 const DEFAULT_RECENT_LIMIT = 15;
@@ -30,12 +51,12 @@ function envDefaults() {
       userName: env('USER_NAME'),
       recentLimit: num('RECENT_LIMIT', DEFAULT_RECENT_LIMIT),
     },
-    plex: { url: env('PLEX_URL'), token: env('PLEX_TOKEN') },
-    jellyfin: { url: env('JELLYFIN_URL'), apiKey: env('JELLYFIN_API_KEY'), userId: env('JELLYFIN_USER_ID') },
-    radarr: { url: env('RADARR_URL'), apiKey: env('RADARR_API_KEY') },
-    sonarr: { url: env('SONARR_URL'), apiKey: env('SONARR_API_KEY') },
-    seerr: { url: env('SEERR_URL'), apiKey: env('SEERR_API_KEY'), userId: env('SEERR_USER_ID') },
-    sabnzbd: { url: env('SABNZBD_URL'), apiKey: env('SABNZBD_API_KEY') },
+    plex: { url: env('PLEX_URL'), token: envSecret('PLEX_TOKEN') },
+    jellyfin: { url: env('JELLYFIN_URL'), apiKey: envSecret('JELLYFIN_API_KEY'), userId: env('JELLYFIN_USER_ID') },
+    radarr: { url: env('RADARR_URL'), apiKey: envSecret('RADARR_API_KEY') },
+    sonarr: { url: env('SONARR_URL'), apiKey: envSecret('SONARR_API_KEY') },
+    seerr: { url: env('SEERR_URL'), apiKey: envSecret('SEERR_API_KEY'), userId: env('SEERR_USER_ID') },
+    sabnzbd: { url: env('SABNZBD_URL'), apiKey: envSecret('SABNZBD_API_KEY') },
   };
 }
 

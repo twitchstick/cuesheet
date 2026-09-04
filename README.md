@@ -121,6 +121,11 @@ What it still does carefully:
 - **Credentials stay server-side.** Service keys live in `settings.json`
   (mode `0600`) inside the config volume and are never returned to the browser —
   the settings API reports only whether a key is set.
+- **Credentials can skip the settings file entirely.** Set `RADARR_API_KEY`,
+  `PLEX_TOKEN` and the like as plain environment variables, or as Docker/Compose
+  secrets via `RADARR_API_KEY_FILE=/run/secrets/radarr_api_key` (any `*_FILE`
+  variable wins over its plain counterpart if both are set) — configure
+  everything this way and the setup wizard never has to write anything to disk.
 - **Artwork from your servers is proxied**, so the browser never holds a
   credential, the proxy only ever returns a bitmap, and it caps how much it
   will pull down. Request artwork loads from TMDB in the browser, the same as
