@@ -25,6 +25,14 @@ test('Recently requested (overview) opens Requests on click, not a per-item deta
   await expect(page.getByText('What the house has asked for, traced from ask to available')).toBeVisible();
 });
 
+test('Recently added\'s title (overview) opens its own full page, not a detail panel', async ({ page }) => {
+  await page.goto('/');
+  const section = page.locator('section', { hasText: 'Recently added' });
+  await section.getByRole('button', { name: 'Recently added' }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await expect(page).toHaveURL(/#\/recent$/);
+});
+
 test('Downloads (#/queue) shows the full signal trace for every queue item, matched and orphaned alike', async ({ page }) => {
   await page.goto('/#/queue');
   await expect(page.getByText('Download queue')).toBeVisible();

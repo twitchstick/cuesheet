@@ -217,7 +217,14 @@ export default function App() {
               <QuickLinks items={d.links.data?.items ?? null} loading={d.links.loading} onChange={d.links.refresh} notify={notify} />
               {d.hasMediaServer && <StreamGrid streams={d.streams.data?.items ?? null} errors={streamErrors} loading={d.streams.loading} onSelect={openStream} />}
               {d.hasMediaServer && (
-                <RecentlyAdded items={d.recent.data?.items ?? null} errors={d.recent.data?.errors ?? null} loading={d.recent.loading} limit={d.config?.recentLimit ?? 15} onSelect={openRecent} />
+                <RecentlyAdded
+                  items={d.recent.data?.items ?? null}
+                  errors={d.recent.data?.errors ?? null}
+                  loading={d.recent.loading}
+                  limit={d.config?.recentLimit ?? 15}
+                  onSelect={openRecent}
+                  onOpen={() => navigate('recent')}
+                />
               )}
               {d.hasSeerr && <RecentlyRequested items={d.recentlyRequested} loading={d.requests.loading} onOpen={() => navigate('requests')} />}
               {/* Release calendar, download queue and requests are all "check when

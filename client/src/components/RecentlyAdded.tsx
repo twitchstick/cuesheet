@@ -13,11 +13,14 @@ interface Props {
   limit?: number;
   full?: boolean;
   onSelect?: (item: RecentItem) => void;
+  /** Makes the title itself open the full page -- only meaningful on the
+   * row (overview), never passed alongside `full`. */
+  onOpen?: () => void;
 }
 
 type Filter = 'all' | 'movies' | 'series';
 
-export default function RecentlyAdded({ items, errors, loading, limit = 15, full = false, onSelect }: Props) {
+export default function RecentlyAdded({ items, errors, loading, limit = 15, full = false, onSelect, onOpen }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
   const visible = useMemo(() => {
     const list = (items ?? []).filter((i) => (filter === 'all' ? true : filter === 'movies' ? i.type === 'movie' : i.type !== 'movie'));
@@ -29,6 +32,7 @@ export default function RecentlyAdded({ items, errors, loading, limit = 15, full
       title="Recently added"
       subtitle="Fresh arrivals across movies and series"
       errors={errors}
+      onTitleClick={onOpen}
       action={
         <div className="seg" role="group" aria-label="Filter">
           {(['all', 'movies', 'series'] as Filter[]).map((f) => (
