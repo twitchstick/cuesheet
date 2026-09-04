@@ -1,9 +1,60 @@
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight } from 'lucide-react';
 import HistoryStrip from './HistoryStrip';
 import Poster from './Poster';
 import { timeAgo, timeLeftLabel } from '../lib/format';
 import { useLiveProgress } from '../hooks/useLiveProgress';
-import type { DownloadStatus, LifecycleItem, LifecycleStage } from '../types';
+import type { AppConfig, DownloadStatus, LifecycleItem, LifecycleStage } from '../types';
+
+export type ServiceLinks = Pick<AppConfig, 'seerrUrl' | 'radarrUrl' | 'sonarrUrl'>;
+
+/**
+ * Straight to the title in the app actually handling it -- not proxied
+ * through Cuesheet, so this only ever needs the base URL and an id already
+ * in hand. Seerr needs a real request behind the item (an orphan queue row
+ * has none); Radarr/Sonarr needs `externalId`, which an orphan gets for
+ * free off its own queue row and a request only once matched.
+ */
+// Each link tinted to the app it opens, the same way a stream is tinted to
+// Plex or Jellyfin -- text-{radarr,sonarr,seerr} in tailwind.config.js.
+const LINK_COLOR: Record<string, string> = { Seerr: 'text-seerr', Radarr: 'text-radarr', Sonarr: 'text-sonarr' };
+
+function deepLinks(item: LifecycleItem, urls: ServiceLinks): { label: string; url: string }[] {
+  const links: { label: string; url: string }[] = [];
+  if (item.fromRequest && item.tmdbId && urls.seerrUrl) {
+    links.push({ label: 'Seerr', url: `${urls.seerrUrl}/${item.mediaType}/${item.tmdbId}` });
+  }
+  if (item.externalId != null) {
+    if (item.mediaType === 'movie' && urls.radarrUrl) links.push({ label: 'Radarr', url: `${urls.radarrUrl}/movie/${item.externalId}` });
+    if (item.mediaType === 'tv' && urls.sonarrUrl) links.push({ label: 'Sonarr', url: `${urls.sonarrUrl}/series/${item.externalId}` });
+  }
+  return links;
+}
+
+/** One "Open in X" link -- a row of these, or nothing at all when there's
+ * nowhere to send someone. */
+function DeepLinks({ item, links }: { item: LifecycleItem; links: ServiceLinks | undefined }) {
+  const resolved = links ? deepLinks(item, links) : [];
+  if (resolved.length === 0) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-4">
+      {resolved.map((l) => (
+        <a
+          key={l.label}
+          href={l.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          // Stopped for the same reason History's toggle stops it -- this
+          // sits inside a card that's itself clickable on Downloads.
+          onClick={(e) => e.stopPropagation()}
+          className={`inline-flex items-center gap-1 text-xs opacity-80 hover:opacity-100 ${LINK_COLOR[l.label]}`}
+        >
+          Open in {l.label}
+          <ArrowUpRight className="h-3 w-3" />
+        </a>
+      ))}
+    </div>
+  );
+}
 
 const STAGES: { key: LifecycleStage; label: string }[] = [
   { key: 'requested', label: 'Requested' },
@@ -85,10 +136,12 @@ interface TraceProps {
   item: LifecycleItem;
   updatedAt?: number | null;
   onSelect?: (item: LifecycleItem) => void;
+  /** Service base URLs for "Open in X" -- the compact row never shows these, only the full card. */
+  links?: ServiceLinks;
 }
 
 /** The full card: one title's request-to-library thread, as a lit signal path. */
-export default function SignalTrace({ item, updatedAt, onSelect }: TraceProps) {
+export default function SignalTrace({ item, updatedAt, onSelect, links }: TraceProps) {
   const idx = stageIndex(item);
   const settled = isSettled(item);
   const moving = isMoving(item);
@@ -208,6 +261,8 @@ export default function SignalTrace({ item, updatedAt, onSelect }: TraceProps) {
           );
         })}
       </div>
+
+      <DeepLinks item={item} links={links} />
 
       {((item.mediaType === 'movie' && item.tmdbId) || (item.mediaType === 'tv' && item.tvdbId)) && (
         // Open from the start for a trace that's already flagged as a

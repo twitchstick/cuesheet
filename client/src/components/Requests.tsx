@@ -7,6 +7,8 @@ interface Props {
   requests: LifecycleItem[] | null;
   requestsError: string | null;
   seerrUrl: string;
+  radarrUrl: string;
+  sonarrUrl: string;
   full?: boolean;
   /** Compact view only -- where the summary tile goes for the full trace. */
   onOpen?: () => void;
@@ -14,7 +16,7 @@ interface Props {
 }
 
 /** Requests are made in Seerr; this traces each one from ask to available. */
-export default function Requests({ requests, requestsError, seerrUrl, full = false, onOpen, updatedAt }: Props) {
+export default function Requests({ requests, requestsError, seerrUrl, radarrUrl, sonarrUrl, full = false, onOpen, updatedAt }: Props) {
   // /api/lifecycle also carries queue-only titles with no Seerr request behind
   // them (added straight in Radarr/Sonarr) -- those belong to Downloads, not here.
   const items = requests?.filter((r) => r.fromRequest) ?? requests;
@@ -49,7 +51,7 @@ export default function Requests({ requests, requestsError, seerrUrl, full = fal
       ) : full ? (
         <div className="flex flex-col gap-3">
           {items.map((r) => (
-            <SignalTrace key={r.id} item={r} updatedAt={updatedAt} />
+            <SignalTrace key={r.id} item={r} updatedAt={updatedAt} links={{ seerrUrl, radarrUrl, sonarrUrl }} />
           ))}
         </div>
       ) : (

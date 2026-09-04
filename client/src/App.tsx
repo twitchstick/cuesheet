@@ -159,6 +159,8 @@ export default function App() {
         requests={d.requests.data?.items ?? null}
         requestsError={d.requests.error}
         seerrUrl={d.config?.seerrUrl ?? ''}
+        radarrUrl={d.config?.radarrUrl ?? ''}
+        sonarrUrl={d.config?.sonarrUrl ?? ''}
         full={full}
         onOpen={() => navigate('requests')}
         updatedAt={d.requests.updatedAt}
@@ -260,6 +262,7 @@ export default function App() {
               full
               onSelect={openQueueItem}
               updatedAt={d.requests.updatedAt}
+              links={{ seerrUrl: d.config?.seerrUrl ?? '', radarrUrl: d.config?.radarrUrl ?? '', sonarrUrl: d.config?.sonarrUrl ?? '' }}
             />
           )}
           {view === 'requests' && requestsView(true)}

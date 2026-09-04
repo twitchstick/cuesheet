@@ -35,8 +35,13 @@ export async function lifecycleFor(r, queueItems, health, deps) {
   let downloadStatus = null;
   let subtitle = null;
   let queueId = null;
+  // Radarr's movieId / Sonarr's seriesId, once resolved -- lets the client
+  // link straight to the title in that app. Stays null for an already-
+  // `available` request (Seerr's own status is enough there, so the lookup
+  // below never runs) and for any request Radarr/Sonarr hasn't matched yet.
+  let externalId = null;
 
-  const base = { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId };
+  const base = { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId };
   if (stage === 'available') return base;
 
   try {
@@ -48,6 +53,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
     if (r.mediaType === 'movie' && Number.isInteger(r.tmdbId) && deps.radarrEnabled) {
       const found = await deps.findByTmdbId(r.tmdbId);
       if (found) {
+        externalId = found.id;
         const row = queueItems.find((q) => q.id === `radarr-${found.id}`);
         if (row) {
           stage = row.status === 'importing' ? 'importing' : 'downloading';
@@ -63,6 +69,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
     } else if (r.mediaType === 'tv' && Number.isInteger(r.tvdbId) && deps.sonarrEnabled) {
       const found = await deps.findByTvdbId(r.tvdbId);
       if (found) {
+        externalId = found.id;
         const row = queueItems.find((q) => q.source === 'sonarr' && q.seriesId === found.id);
         if (row) {
           stage = row.status === 'importing' ? 'importing' : 'downloading';
@@ -92,7 +99,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
     if (issue) stallReason = issue.message;
   }
 
-  return { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId };
+  return { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId };
 }
 
 /**
@@ -127,6 +134,9 @@ export function orphanLifecycleItem(row) {
     subtitle: row.subtitle || null,
     fromRequest: false,
     queueId: row.id,
+    // Carried on the queue row itself -- an orphan has no Seerr request to
+    // resolve a Radarr/Sonarr id from otherwise.
+    externalId: row.movieId ?? row.seriesId ?? null,
   };
 }
 

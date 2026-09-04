@@ -237,8 +237,12 @@ export const publicConfig = () => ({
   timeZone: config.timeZone,
   refreshSeconds: config.refreshSeconds,
   services: enabledServices(),
-  // Where the browser should send people to make a request.
+  // Where the browser should send people to make a request, or to look at
+  // a title directly in the app that's actually handling it -- the signal
+  // trace's own deep links, not proxied through Cuesheet like everything else.
   seerrUrl: config.seerr.enabled ? config.seerr.url : '',
+  radarrUrl: config.radarr.enabled ? config.radarr.url : '',
+  sonarrUrl: config.sonarr.enabled ? config.sonarr.url : '',
 });
 
 /** Settings as shown to the browser: secrets are never returned, only whether one is stored. */

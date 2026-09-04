@@ -77,6 +77,24 @@ test('a trace card\'s History expands in place without opening the detail panel'
   await expect(page.getByRole('dialog')).toBeVisible();
 });
 
+test('a trace card offers deep links straight to Seerr and Radarr, without opening the detail panel', async ({ page, context }) => {
+  await page.goto('/#/queue');
+  const card = page.locator('article', { hasText: 'Ember & Ash' });
+
+  const seerrLink = card.getByRole('link', { name: /Open in Seerr/i });
+  const radarrLink = card.getByRole('link', { name: /Open in Radarr/i });
+  // tmdbId 10 (the request) and Radarr's own internal movie id 10 (see
+  // fixtures.js) happen to coincide here -- both real, from different fields.
+  await expect(seerrLink).toHaveAttribute('href', /\/movie\/10$/);
+  await expect(radarrLink).toHaveAttribute('href', /\/movie\/10$/);
+
+  const [popup] = await Promise.all([context.waitForEvent('page'), radarrLink.click()]);
+  await popup.close();
+  // The card is itself clickable on Downloads -- the link's click must not
+  // also bubble up and open the detail panel.
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+});
+
 // Release Calendar isn't covered here: its default window is "this week,
 // relative to whenever the test runs," which the fixed-date fixtures
 // (server/test/integration/fixtures.js) can't line up with deterministically

@@ -140,6 +140,22 @@ describe('lifecycleFor', () => {
     assert.equal(item.createdAt, 12345);
     assert.equal(item.fromRequest, true);
   });
+
+  test('externalId is Radarr/Sonarr\'s own internal id, once resolved, for the client\'s deep link', async () => {
+    const deps = { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 42, monitored: true, hasFile: false }) };
+    const item = await lifecycleFor(request(), [], noHealth, deps);
+    assert.equal(item.externalId, 42);
+  });
+
+  test('externalId stays null for an already-available request -- the lookup never runs, so there is nothing to resolve it from', async () => {
+    const item = await lifecycleFor(request({ mediaStatus: 'available' }), [], noHealth, { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 42, monitored: true, hasFile: true }) });
+    assert.equal(item.externalId, null);
+  });
+
+  test('externalId stays null when Radarr/Sonarr has no match for this title at all', async () => {
+    const item = await lifecycleFor(request(), [], noHealth, { ...noDeps, radarrEnabled: true, findByTmdbId: async () => null });
+    assert.equal(item.externalId, null);
+  });
 });
 
 describe('orphanLifecycleItem', () => {
@@ -156,6 +172,12 @@ describe('orphanLifecycleItem', () => {
 
   test('an importing status maps to the importing stage', () => {
     assert.equal(orphanLifecycleItem({ id: 'radarr-2', status: 'importing' }).stage, 'importing');
+  });
+
+  test('externalId comes straight off the queue row -- movieId for Radarr, seriesId for Sonarr', () => {
+    assert.equal(orphanLifecycleItem({ id: 'radarr-77', movieId: 77 }).externalId, 77);
+    assert.equal(orphanLifecycleItem({ id: 'sonarr-200', seriesId: 55 }).externalId, 55);
+    assert.equal(orphanLifecycleItem({ id: 'radarr-1' }).externalId, null, 'neither field present -- null, not undefined');
   });
 
   test('mediaType comes from the queue row\'s type, episode -> tv', () => {

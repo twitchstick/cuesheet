@@ -11,6 +11,10 @@ export interface AppConfig {
   services: Record<ServiceName, boolean>;
   /** Where to send people to make a request, empty when Seerr isn't set up. */
   seerrUrl: string;
+  /** Deep links for the signal trace -- straight to the title in the app
+   * actually handling it. Empty when that service isn't set up. */
+  radarrUrl: string;
+  sonarrUrl: string;
 }
 
 export interface Stream {
@@ -197,6 +201,10 @@ export interface LifecycleItem extends MediaRequest {
   fromRequest: boolean;
   /** The DownloadItem id ("radarr-123") this trace is currently matched to in the queue, if any -- what /api/details expects. */
   queueId: string | null;
+  /** Radarr's movieId / Sonarr's seriesId, once resolved -- for a deep link
+   * straight to the title in that app. Null until Radarr/Sonarr has matched
+   * it (never resolved at all for an already-`available` request). */
+  externalId: number | null;
 }
 
 /** One grab/import/failure off a title's own Radarr/Sonarr history -- the

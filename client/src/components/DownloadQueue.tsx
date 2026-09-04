@@ -1,5 +1,5 @@
 import Section, { Empty } from './Section';
-import SignalTrace, { CompactSignalTrace } from './SignalTrace';
+import SignalTrace, { CompactSignalTrace, type ServiceLinks } from './SignalTrace';
 import { bandwidth } from '../lib/format';
 import type { DownloadClientStats, Errors, LifecycleItem } from '../types';
 
@@ -14,10 +14,12 @@ interface Props {
   full?: boolean;
   onSelect?: (item: LifecycleItem) => void;
   updatedAt?: number | null;
+  /** "Open in X" deep links -- the full view only; the compact row stays dense. */
+  links?: ServiceLinks;
 }
 
 /** What's actually moving through Radarr/Sonarr right now, as the same signal trace Requests uses -- with the request's own context (who asked, when) folded in wherever a title has one. */
-export default function DownloadQueue({ items, errors, loading, client, limit = 4, full = false, onSelect, updatedAt }: Props) {
+export default function DownloadQueue({ items, errors, loading, client, limit = 4, full = false, onSelect, updatedAt, links }: Props) {
   const count = items?.length ?? 0;
   const visible = full ? (items ?? []) : (items ?? []).slice(0, limit);
 
@@ -39,7 +41,7 @@ export default function DownloadQueue({ items, errors, loading, client, limit = 
       ) : full ? (
         <div className="flex flex-col gap-3">
           {visible.map((item) => (
-            <SignalTrace key={item.id} item={item} updatedAt={updatedAt} onSelect={onSelect} />
+            <SignalTrace key={item.id} item={item} updatedAt={updatedAt} onSelect={onSelect} links={links} />
           ))}
         </div>
       ) : (

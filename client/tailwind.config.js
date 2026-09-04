@@ -31,6 +31,13 @@ export default {
         // The two media servers' own colours, used to tint their streams.
         plex: '#e5a00d',
         jellyfin: '#aa5cc3',
+        // The signal trace's own deep links, tinted to the app each one
+        // opens: Radarr's gold (radarr.github.io/css/theme.less), Sonarr's
+        // blue (its own brand cyan), Seerr's indigo (Overseerr's own
+        // tailwind.config.js, which uses Tailwind's stock indigo-500).
+        radarr: '#ecd65d',
+        sonarr: '#35c5f4',
+        seerr: '#6366f1',
       },
       fontFamily: {
         // Archivo is a grotesque built for signage and dense display — the

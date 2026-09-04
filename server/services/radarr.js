@@ -86,6 +86,10 @@ export async function queue(cfg) {
       id: `radarr-${r.movieId}`,
       source: 'radarr',
       type: 'movie',
+      // Not part of the public DownloadItem shape -- kept only so the
+      // lifecycle route can build a deep link for an orphan queue row
+      // (one with no Seerr request to resolve an id from otherwise).
+      movieId: r.movieId,
       title: r.movie?.title ?? r.title ?? 'Unknown movie',
       subtitle: r.movie?.year ? String(r.movie.year) : '',
       sizeBytes: Number(r.size) || 0,

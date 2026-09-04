@@ -106,6 +106,9 @@ describe('basic wiring', () => {
     assert.equal(body.serverName, 'Integration Apollo');
     assert.deepEqual(body.services, { plex: true, jellyfin: true, radarr: true, sonarr: true, seerr: true, sabnzbd: true });
     assert.equal(body.seerrUrl, upstreams.seerr.url);
+    // The signal trace's own deep links -- real base URLs, not proxied.
+    assert.equal(body.radarrUrl, upstreams.radarr.url);
+    assert.equal(body.sonarrUrl, upstreams.sonarr.url);
   });
 
   test('GET /api/setup/status says setup is already done once services are configured', async () => {
@@ -183,6 +186,8 @@ describe('/api/lifecycle (Seerr requests correlated with Radarr/Sonarr queues)',
     assert.equal(movie.stage, 'downloading');
     assert.equal(movie.queueId, 'radarr-10');
     assert.equal(movie.fromRequest, true);
+    // Radarr's own internal id, resolved via findByTmdbId -- the deep link's id.
+    assert.equal(movie.externalId, 10);
   });
 
   test('a tv request is matched via tvdbId, not tmdbId, to its Sonarr queue row', async () => {
@@ -191,6 +196,7 @@ describe('/api/lifecycle (Seerr requests correlated with Radarr/Sonarr queues)',
     assert.ok(tv, 'expected the Second Sun request in the lifecycle');
     assert.equal(tv.stage, 'downloading');
     assert.equal(tv.queueId, 'sonarr-200');
+    assert.equal(tv.externalId, 55);
   });
 
   test('an unclaimed Radarr queue row surfaces as an orphan, not dropped', async () => {
@@ -199,6 +205,8 @@ describe('/api/lifecycle (Seerr requests correlated with Radarr/Sonarr queues)',
     assert.ok(orphan, 'expected the orphaned Redline queue row');
     assert.equal(orphan.fromRequest, false);
     assert.equal(orphan.id, 'queue-radarr-77');
+    // No Seerr request to resolve one from -- straight off its own queue row.
+    assert.equal(orphan.externalId, 77);
   });
 });
 
