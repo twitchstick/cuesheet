@@ -1,21 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api } from './api';
+import { useCallback, useEffect, useState } from 'react';
 import RecentlyAdded from './components/RecentlyAdded';
 import DownloadQueue from './components/DownloadQueue';
 import QuickLinks from './components/QuickLinks';
 import SetupWizard from './components/SetupWizard';
 import Requests from './components/Requests';
-import Sidebar, { MobileNav, ServicesCard, type ServiceHealth } from './components/Sidebar';
+import Sidebar, { MobileNav, ServicesCard } from './components/Sidebar';
 import StreamGrid from './components/StreamGrid';
 import Toasts, { type ToastMessage } from './components/Toast';
 import TopBar, { MobileGreeting } from './components/TopBar';
-import MonthCalendar, { gridFor } from './components/MonthCalendar';
+import MonthCalendar from './components/MonthCalendar';
 import WeekCalendar from './components/WeekCalendar';
 import MediaDetailPanel from './components/MediaDetailPanel';
 import StreamDetailPanel from './components/StreamDetailPanel';
-import { usePoll } from './hooks/usePoll';
-import { addDays, greeting, mondayOf, toIsoDate } from './lib/format';
-import type { AppConfig, CalendarItem, LifecycleItem, RecentItem, SetupStatus, Stream, View } from './types';
+import { useDashboardData } from './hooks/useDashboardData';
+import { greeting } from './lib/format';
+import type { AppConfig, CalendarItem, LifecycleItem, RecentItem, Stream, View } from './types';
 
 /** What the detail panel is showing. A stream is held by id so it stays live. */
 type Selection =
@@ -25,45 +24,36 @@ type Selection =
 // Now Playing leads the overview, so there is no separate streams route; an
 // old #streams link falls through to the overview.
 const VIEWS: View[] = ['overview', 'recent', 'calendar', 'queue', 'requests', 'setup'];
-// What needs a look floats to the top of Downloads; within a status, whatever's furthest along.
-const DOWNLOAD_PRIORITY: Record<string, number> = { failed: 0, warning: 1, stalled: 2, downloading: 3, importing: 4, queued: 5, paused: 6 };
 const viewFromHash = (): View => {
   const v = window.location.hash.replace(/^#\/?/, '') as View;
   return VIEWS.includes(v) ? v : 'overview';
 };
 
 export default function App() {
-  const [config, setConfig] = useState<AppConfig | null>(null);
-  const [configError, setConfigError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [view, setView] = useState<View>(viewFromHash);
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [now, setNow] = useState(() => new Date());
-  const [setup, setSetup] = useState<SetupStatus | null>(null);
   // What the detail panel is showing: a live session, or a library/calendar item.
   const [selected, setSelected] = useState<Selection | null>(null);
 
-  useEffect(() => {
-    api.config().then(setConfig).catch((err) => setConfigError(err.message));
-    api
-      .setupStatus()
-      .then((s) => {
-        setSetup(s);
-        if (s.needsSetup && viewFromHash() === 'overview') setView('setup');
-      })
-      .catch(() => setSetup(null));
-    const t = window.setInterval(() => setNow(new Date()), 60_000);
-    const onHash = () => setView(viewFromHash());
-    window.addEventListener('hashchange', onHash);
-    return () => {
-      window.clearInterval(t);
-      window.removeEventListener('hashchange', onHash);
-    };
-  }, []);
+  const d = useDashboardData(view);
 
   useEffect(() => {
-    if (config?.title) document.title = config.title;
-  }, [config?.title]);
+    const onHash = () => setView(viewFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // A first-load nudge, not a redirect that follows you around: this only
+  // ever fires once, since d.setup only ever moves from unset to a real
+  // value once (and again to needsSetup: false after a save, which trips
+  // this same effect but no longer meets the condition below).
+  useEffect(() => {
+    if (d.setup?.needsSetup && viewFromHash() === 'overview') setView('setup');
+  }, [d.setup]);
+
+  useEffect(() => {
+    if (d.config?.title) document.title = d.config.title;
+  }, [d.config?.title]);
 
   const navigate = useCallback((v: View) => {
     window.location.hash = v === 'overview' ? '' : `/${v}`;
@@ -77,78 +67,14 @@ export default function App() {
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3500);
   }, []);
 
-  const services = config?.services;
-  const hasMediaServer = Boolean(services?.plex || services?.jellyfin);
-  const hasCalendar = Boolean(services?.radarr || services?.sonarr);
-  // Same services as the calendar today; kept separate since the two features
-  // are conceptually distinct and may not always share that condition.
-  const hasQueue = hasCalendar;
-  const hasSeerr = Boolean(services?.seerr);
-
-  const streams = usePoll(api.streams, Math.max(5, config?.refreshSeconds ?? 15) * 1000, hasMediaServer);
-  const recent = usePoll(api.recent, 5 * 60_000, hasMediaServer);
-
-  const today = toIsoDate(now);
-  // The overview shows the week ahead; the calendar tab shows a whole month.
-  const weekStart = useMemo(() => addDays(mondayOf(today), weekOffset), [today, weekOffset]);
-  const calendarFetcher = useCallback(() => api.calendar(weekStart, addDays(weekStart, 6)), [weekStart]);
-  const calendar = usePoll(calendarFetcher, 15 * 60_000, hasCalendar && view !== 'calendar');
-
-  const [month, setMonth] = useState(today);
-  // Fetch the whole visible grid, not just the month, so the leading and
-  // trailing days from the neighbouring months carry their releases too.
-  const monthFetcher = useCallback(() => {
-    const days = gridFor(month);
-    return api.calendar(days[0], days[days.length - 1]);
-  }, [month]);
-  const monthCalendar = usePoll(monthFetcher, 15 * 60_000, hasCalendar && view === 'calendar');
-
-  const queue = usePoll(api.queue, 20_000, hasQueue);
-  // Requests and Downloads share this one poll -- it carries every
-  // Seerr-backed request plus any queue item with no request behind it, and
-  // each view filters to what it actually shows.
-  const requests = usePoll(api.lifecycle, 60_000, hasQueue || hasSeerr);
-  // Rarely changes, so no live polling — the editor refreshes it after a save.
-  const links = usePoll(api.links, 30 * 60_000, true);
-
-  // Sidebar service health: green when the last call succeeded, amber when it errored.
-  const health = useMemo<ServiceHealth[]>(() => {
-    if (!services) return [];
-    const list: ServiceHealth[] = [];
-    for (const name of ['plex', 'jellyfin'] as const) {
-      if (!services[name]) continue;
-      const err = streams.data?.errors?.[name] ?? recent.data?.errors?.[name];
-      list.push({ name, ok: streams.data || recent.data ? !err : undefined });
-    }
-    for (const name of ['radarr', 'sonarr'] as const) {
-      if (!services[name]) continue;
-      const err = calendar.data?.errors?.[name] ?? queue.data?.errors?.[name];
-      list.push({ name, ok: calendar.data || queue.data ? !err : undefined });
-    }
-    if (services.seerr) list.push({ name: 'seerr', ok: requests.data ? true : requests.error ? false : undefined });
-    if (services.sabnzbd) list.push({ name: 'sabnzbd', ok: queue.data ? !queue.data.errors?.sabnzbd : undefined });
-    return list;
-  }, [services, streams.data, recent.data, calendar.data, queue.data, requests.data, requests.error]);
-
-  const available = useMemo(() => {
-    const set = new Set<View>(['overview', 'setup']);
-    if (hasMediaServer) set.add('recent');
-    if (hasCalendar) set.add('calendar');
-    if (hasQueue) set.add('queue');
-    if (hasSeerr) set.add('requests');
-    return set;
-  }, [hasMediaServer, hasCalendar, hasQueue, hasSeerr]);
-
-
-  const nothingConfigured = config && !hasMediaServer && !hasCalendar && !hasSeerr && view !== 'setup';
   const onSettingsSaved = (next: AppConfig) => {
-    setConfig(next);
-    setSetup((s) => (s ? { ...s, needsSetup: false } : s));
-    streams.refresh();
-    recent.refresh();
-    calendar.refresh();
-    monthCalendar.refresh();
-    requests.refresh();
+    d.setConfig(next);
+    d.setSetup((s) => (s ? { ...s, needsSetup: false } : s));
+    d.streams.refresh();
+    d.recent.refresh();
+    d.calendar.refresh();
+    d.monthCalendar.refresh();
+    d.requests.refresh();
     navigate('overview');
   };
   const openStream = useCallback((stream: Stream) => setSelected({ kind: 'stream', id: stream.id }), []);
@@ -170,54 +96,63 @@ export default function App() {
 
   // The session is looked up fresh each render so the panel keeps ticking with
   // the poll, and closes itself if the stream stops while it is open.
-  const openStreamData = selected?.kind === 'stream' ? (streams.data?.items ?? []).find((s) => s.id === selected.id) : undefined;
+  const openStreamData = selected?.kind === 'stream' ? (d.streams.data?.items ?? []).find((s) => s.id === selected.id) : undefined;
   useEffect(() => {
-    if (selected?.kind === 'stream' && streams.data && !openStreamData) setSelected(null);
-  }, [selected, streams.data, openStreamData]);
+    if (selected?.kind === 'stream' && d.streams.data && !openStreamData) setSelected(null);
+  }, [selected, d.streams.data, openStreamData]);
 
-  const title = config?.title ?? 'Cuesheet';
-  const hello = greeting(config?.userName ?? '', now);
-  const serverName = config?.serverName ?? '';
+  const title = d.config?.title ?? 'Cuesheet';
+  const hello = greeting(d.config?.userName ?? '', d.now);
+  const serverName = d.config?.serverName ?? '';
 
-  const streamErrors = streams.data?.errors ?? (streams.error ? { server: streams.error } : null);
-  const queueErrors = queue.data?.errors ?? (queue.error ? { server: queue.error } : null);
-  const weekView = hasCalendar && (
-    <WeekCalendar start={weekStart} today={calendar.data?.today ?? today} items={calendar.data?.items ?? null} errors={calendar.data?.errors ?? null} loading={calendar.loading} onShift={(days) => setWeekOffset((o) => (days === 0 ? 0 : o + days))} onSelect={openCalendar} />
+  const streamErrors = d.streams.data?.errors ?? (d.streams.error ? { server: d.streams.error } : null);
+  const queueErrors = d.queue.data?.errors ?? (d.queue.error ? { server: d.queue.error } : null);
+  const weekView = d.hasCalendar && (
+    <WeekCalendar
+      start={d.weekStart}
+      today={d.calendar.data?.today ?? d.today}
+      items={d.calendar.data?.items ?? null}
+      errors={d.calendar.data?.errors ?? null}
+      loading={d.calendar.loading}
+      onShift={(days) => d.setWeekOffset((o) => (days === 0 ? 0 : o + days))}
+      onSelect={openCalendar}
+    />
   );
-  const monthView = hasCalendar && (
-    <MonthCalendar month={month} today={monthCalendar.data?.today ?? today} items={monthCalendar.data?.items ?? null} errors={monthCalendar.data?.errors ?? null} loading={monthCalendar.loading} onMonth={setMonth} onSelect={openCalendar} />
+  const monthView = d.hasCalendar && (
+    <MonthCalendar
+      month={d.month}
+      today={d.monthCalendar.data?.today ?? d.today}
+      items={d.monthCalendar.data?.items ?? null}
+      errors={d.monthCalendar.data?.errors ?? null}
+      loading={d.monthCalendar.loading}
+      onMonth={d.setMonth}
+      onSelect={openCalendar}
+    />
   );
   const requestsView = (full: boolean) =>
-    hasSeerr && (
+    d.hasSeerr && (
       <Requests
-        requests={requests.data?.items ?? null}
-        requestsError={requests.error}
-        seerrUrl={config?.seerrUrl ?? ''}
+        requests={d.requests.data?.items ?? null}
+        requestsError={d.requests.error}
+        seerrUrl={d.config?.seerrUrl ?? ''}
         full={full}
         onOpen={() => navigate('requests')}
-        updatedAt={requests.updatedAt}
+        updatedAt={d.requests.updatedAt}
       />
     );
-  // Downloads and Requests read the same poll -- this is just the slice
-  // that's actually in the queue right now, worst-off first so a failed or
-  // stalled item doesn't get lost among what's quietly moving.
-  const downloadItems = useMemo(() => {
-    const items = (requests.data?.items ?? []).filter((r) => r.stage === 'downloading' || r.stage === 'importing');
-    return [...items].sort((a, b) => (DOWNLOAD_PRIORITY[a.downloadStatus ?? a.stage] ?? 9) - (DOWNLOAD_PRIORITY[b.downloadStatus ?? b.stage] ?? 9));
-  }, [requests.data]);
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar title={title} view={view} available={available} onNavigate={navigate} services={health} />
+      <Sidebar title={title} view={view} available={d.available} onNavigate={navigate} services={d.health} />
 
       <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
         <TopBar title={title} serverName={serverName} greeting={hello} />
-        <MobileNav view={view} available={available} onNavigate={navigate} />
+        <MobileNav view={view} available={d.available} onNavigate={navigate} />
         {view === 'overview' && <MobileGreeting serverName={serverName} greeting={hello} />}
 
-        {configError && <div className="card mb-6 p-4 text-sm text-rose-300">Couldn’t load configuration: {configError}</div>}
+        {d.configError && <div className="card mb-6 p-4 text-sm text-rose-300">Couldn’t load configuration: {d.configError}</div>}
 
-        {nothingConfigured && (
+        {d.nothingConfigured && view !== 'setup' && (
           <div className="card mb-6 flex flex-wrap items-center justify-between gap-4 p-6 text-sm text-fog-300">
             <div>
               <p className="mb-1 text-base font-semibold text-fog-100">{title} isn’t connected to anything yet.</p>
@@ -232,54 +167,58 @@ export default function App() {
         <div className="flex flex-col gap-10">
           {view === 'overview' && (
             <>
-              <QuickLinks items={links.data?.items ?? null} loading={links.loading} onChange={links.refresh} notify={notify} />
-              {hasMediaServer && <StreamGrid streams={streams.data?.items ?? null} errors={streamErrors} loading={streams.loading} onSelect={openStream} />}
-              {hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} limit={config?.recentLimit ?? 15} onSelect={openRecent} />}
+              <QuickLinks items={d.links.data?.items ?? null} loading={d.links.loading} onChange={d.links.refresh} notify={notify} />
+              {d.hasMediaServer && <StreamGrid streams={d.streams.data?.items ?? null} errors={streamErrors} loading={d.streams.loading} onSelect={openStream} />}
+              {d.hasMediaServer && (
+                <RecentlyAdded items={d.recent.data?.items ?? null} errors={d.recent.data?.errors ?? null} loading={d.recent.loading} limit={d.config?.recentLimit ?? 15} onSelect={openRecent} />
+              )}
               {/* Release calendar, download queue and requests are all "check when
                   curious" rather than "glance right now" -- and each already has its
                   own full tab -- so on a phone, where they stack into a long scroll
                   instead of a compact grid, they stay tab-only. */}
-              {hasCalendar && <div className="hidden md:block">{weekView}</div>}
-              {hasQueue && (
+              {d.hasCalendar && <div className="hidden md:block">{weekView}</div>}
+              {d.hasQueue && (
                 <div className="hidden md:block">
                   <DownloadQueue
-                    items={requests.data ? downloadItems : null}
+                    items={d.requests.data ? d.downloadItems : null}
                     errors={queueErrors}
-                    loading={requests.loading}
-                    client={queue.data?.client ?? null}
+                    loading={d.requests.loading}
+                    client={d.queue.data?.client ?? null}
                     onSelect={openQueueItem}
-                    updatedAt={requests.updatedAt}
+                    updatedAt={d.requests.updatedAt}
                   />
                 </div>
               )}
-              {hasSeerr && <div className="hidden md:block">{requestsView(false)}</div>}
+              {d.hasSeerr && <div className="hidden md:block">{requestsView(false)}</div>}
             </>
           )}
-          {view === 'recent' && hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} full onSelect={openRecent} />}
+          {view === 'recent' && d.hasMediaServer && (
+            <RecentlyAdded items={d.recent.data?.items ?? null} errors={d.recent.data?.errors ?? null} loading={d.recent.loading} full onSelect={openRecent} />
+          )}
           {view === 'calendar' && monthView}
-          {view === 'queue' && hasQueue && (
+          {view === 'queue' && d.hasQueue && (
             <DownloadQueue
-              items={requests.data ? downloadItems : null}
+              items={d.requests.data ? d.downloadItems : null}
               errors={queueErrors}
-              loading={requests.loading}
-              client={queue.data?.client ?? null}
+              loading={d.requests.loading}
+              client={d.queue.data?.client ?? null}
               full
               onSelect={openQueueItem}
-              updatedAt={requests.updatedAt}
+              updatedAt={d.requests.updatedAt}
             />
           )}
           {view === 'requests' && requestsView(true)}
-          {view === 'setup' && <SetupWizard firstRun={Boolean(setup?.needsSetup)} onSaved={onSettingsSaved} onCancel={() => navigate('overview')} notify={notify} />}
-          {view !== 'overview' && !available.has(view) && <div className="card p-6 text-sm text-fog-500">That section isn’t enabled. Configure the matching service to turn it on.</div>}
+          {view === 'setup' && <SetupWizard firstRun={Boolean(d.setup?.needsSetup)} onSaved={onSettingsSaved} onCancel={() => navigate('overview')} notify={notify} />}
+          {view !== 'overview' && !d.available.has(view) && <div className="card p-6 text-sm text-fog-500">That section isn’t enabled. Configure the matching service to turn it on.</div>}
         </div>
 
         <div className="mt-8 lg:hidden">
-          <ServicesCard services={health} />
+          <ServicesCard services={d.health} />
         </div>
 
         <footer className="mt-10 text-center text-[11px] text-fog-700">
           {title}
-          {streams.updatedAt ? ` · updated ${new Date(streams.updatedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : ''}
+          {d.streams.updatedAt ? ` · updated ${new Date(d.streams.updatedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : ''}
         </footer>
       </main>
 
