@@ -14,12 +14,27 @@ what you expected. There is no bounty; this is a personal project.
 The latest release is the supported one. Fixes land on `main` and go out in the
 next release.
 
-## No sign-in
+## No sign-in by default
 
-Cuesheet has no accounts. Anyone who can open the page sees the dashboard and
-can change its settings, which is why it belongs on a home network rather than
-the open internet. Put it behind a VPN or an authenticating reverse proxy if it
-needs to be reachable from outside.
+Cuesheet has no accounts, and no sign-in unless you set one up. By default,
+anyone who can open the page sees the dashboard and can change its settings,
+which is why it belongs on a home network rather than the open internet. Put
+it behind a VPN or an authenticating reverse proxy if it needs to be reachable
+from outside.
+
+## Optional admin password
+
+One shared password gates the whole app, set from Settings → Security or via
+`ADMIN_PASSWORD` (`_FILE` supported, same as the service credentials below).
+The env var always wins over one saved through Settings — the deliberate
+recovery path for a forgotten password. There are no accounts, only a session
+per device; a session lasts until that device logs out (no automatic expiry,
+though browsers themselves cap a cookie's lifetime around 400 days). Wrong
+attempts are rate-limited (10 per 15 minutes per address), and the password
+is hashed (scrypt) before it ever reaches disk. It does not add HTTPS or
+protect against an attacker who can already read your LAN's traffic — the
+session cookie is `HttpOnly` and `SameSite=Strict`, but travels in plain text
+like every other Cuesheet response unless TLS is terminated in front of it.
 
 ## How Cuesheet protects itself
 
@@ -49,8 +64,9 @@ needs to be reachable from outside.
 
 ## What is left to the operator
 
-- **Do not expose Cuesheet directly to the internet.** Use a VPN or an
-  authenticating proxy.
+- **Do not expose Cuesheet directly to the internet**, admin password or not.
+  It's a deterrent for anyone who reaches the page over plain HTTP, not a
+  substitute for a VPN or a reverse proxy doing real authentication and TLS.
 - There is no HTTPS. Terminate TLS at a reverse proxy if it leaves your LAN.
-- Anyone on your network can make requests through the Seerr link and change
-  Cuesheet's service settings.
+- Without a password set, anyone on your network can make requests through
+  the Seerr link and change Cuesheet's service settings.

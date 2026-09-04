@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { UpstreamError } from './http.js';
+import { isValidSession, sessionTokenFrom } from './auth.js';
 
 // The page only ever loads its own bundle; posters come from us or from TMDB.
 // A quick link's favicon is the one exception: it can point anywhere on the
@@ -52,10 +53,29 @@ export function noStore(_req, res, next) {
   next();
 }
 
-// Nothing here asks who you are, so a page the viewer happens to be visiting
-// must not be able to reach in and change settings. Browsers always send an
-// Origin on cross-site writes, and it stays the attacker's domain even when
-// DNS rebinding makes the request look same-origin to the network.
+/**
+ * Trusted-LAN mode by default: no password configured, everything below is
+ * a no-op and every request goes straight through, same as before this
+ * existed. When a password *is* configured, everything except a small
+ * allowlist (enough to render a login screen and log into it) needs a
+ * valid session -- the real enforcement of the gate. The client's own
+ * login screen is UX; this is what actually protects a route.
+ */
+const OPEN_WHEN_LOCKED = new Set(['/config', '/setup/status', '/health', '/auth/status', '/auth/login', '/auth/logout']);
+export function requireAuth(req, res, next) {
+  if (!config.auth.enabled || OPEN_WHEN_LOCKED.has(req.path)) return next();
+  if (isValidSession(sessionTokenFrom(req))) return next();
+  res.status(401).json({ error: 'Login required' });
+}
+
+// A page the viewer happens to be visiting must not be able to reach in and
+// change settings, or -- once a password is set -- ride along on a session
+// cookie it never should have had access to. Browsers always send an Origin
+// on cross-site writes, and it stays the attacker's domain even when DNS
+// rebinding makes the request look same-origin to the network. The
+// session cookie's own SameSite=Strict (see routes/auth.js) is the primary
+// defense once a session exists at all; this covers every write regardless
+// of whether one does.
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 export function checkOrigin(req, res, next) {
   if (!WRITE_METHODS.has(req.method)) return next();

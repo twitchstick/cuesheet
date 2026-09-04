@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import RecentlyAdded from './components/RecentlyAdded';
 import DownloadQueue from './components/DownloadQueue';
 import QuickLinks from './components/QuickLinks';
@@ -8,11 +9,13 @@ import Sidebar, { MobileNav, ServicesCard } from './components/Sidebar';
 import StreamGrid from './components/StreamGrid';
 import Toasts, { type ToastMessage } from './components/Toast';
 import TopBar, { MobileGreeting } from './components/TopBar';
+import LoginScreen from './components/LoginScreen';
 import MonthCalendar from './components/MonthCalendar';
 import WeekCalendar from './components/WeekCalendar';
 import MediaDetailPanel from './components/MediaDetailPanel';
 import StreamDetailPanel from './components/StreamDetailPanel';
 import { useDashboardData } from './hooks/useDashboardData';
+import { useAuth } from './hooks/useAuth';
 import { greeting } from './lib/format';
 import type { AppConfig, CalendarItem, LifecycleItem, RecentItem, Stream, View } from './types';
 
@@ -36,6 +39,7 @@ export default function App() {
   const [selected, setSelected] = useState<Selection | null>(null);
 
   const d = useDashboardData(view);
+  const auth = useAuth();
 
   useEffect(() => {
     const onHash = () => setView(viewFromHash());
@@ -76,6 +80,25 @@ export default function App() {
     d.monthCalendar.refresh();
     d.requests.refresh();
     navigate('overview');
+  };
+
+  const handleLogin = async (password: string) => {
+    await auth.login(password);
+    // Every one of these read as a 401 while locked out (useDashboardData's
+    // polls don't know about auth, only the server does) -- refresh them
+    // for real now instead of waiting on whatever each poll's own interval
+    // happens to schedule next, which for links is as long as 30 minutes.
+    d.streams.refresh();
+    d.recent.refresh();
+    d.calendar.refresh();
+    d.monthCalendar.refresh();
+    d.queue.refresh();
+    d.requests.refresh();
+    d.links.refresh();
+  };
+
+  const handleLogout = () => {
+    auth.logout();
   };
   const openStream = useCallback((stream: Stream) => setSelected({ kind: 'stream', id: stream.id }), []);
   const openRecent = useCallback(
@@ -141,12 +164,35 @@ export default function App() {
       />
     );
 
+  // The whole-app gate: nothing below this renders until the auth check
+  // resolves, and a failed check is treated as "unknown," never as
+  // "must be open" -- the one place in this component where erring toward
+  // showing less, not more, is the correct default.
+  if (auth.loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-fog-500" />
+      </div>
+    );
+  }
+  if (!auth.status) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4 text-center text-sm text-rose-300">
+        Couldn’t reach {d.config?.title ?? 'Cuesheet'}{auth.error ? `: ${auth.error}` : ''}.
+      </div>
+    );
+  }
+  const authStatus = auth.status;
+  if (authStatus.enabled && !authStatus.authenticated) {
+    return <LoginScreen title={d.config?.title ?? 'Cuesheet'} serverName={d.config?.serverName ?? ''} onLogin={handleLogin} />;
+  }
+
   return (
     <div className="flex min-h-screen">
       <Sidebar title={title} view={view} available={d.available} onNavigate={navigate} services={d.health} />
 
       <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-        <TopBar title={title} serverName={serverName} greeting={hello} />
+        <TopBar title={title} serverName={serverName} greeting={hello} onLogout={authStatus.enabled ? handleLogout : undefined} />
         <MobileNav view={view} available={d.available} onNavigate={navigate} />
         {view === 'overview' && <MobileGreeting serverName={serverName} greeting={hello} />}
 
@@ -208,7 +254,9 @@ export default function App() {
             />
           )}
           {view === 'requests' && requestsView(true)}
-          {view === 'setup' && <SetupWizard firstRun={Boolean(d.setup?.needsSetup)} onSaved={onSettingsSaved} onCancel={() => navigate('overview')} notify={notify} />}
+          {view === 'setup' && (
+            <SetupWizard firstRun={Boolean(d.setup?.needsSetup)} auth={authStatus} onAuthChanged={auth.refresh} onSaved={onSettingsSaved} onCancel={() => navigate('overview')} notify={notify} />
+          )}
           {view !== 'overview' && !d.available.has(view) && <div className="card p-6 text-sm text-fog-500">That section isn’t enabled. Configure the matching service to turn it on.</div>}
         </div>
 

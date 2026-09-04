@@ -43,6 +43,10 @@ process.env.SEERR_URL = upstreams.seerr.url;
 process.env.SEERR_API_KEY = 'seerr-key';
 process.env.SABNZBD_URL = upstreams.sabnzbd.url;
 process.env.SABNZBD_API_KEY = 'sab-key';
+// The whole-app gate is on for the e2e run, same as a real deployment that
+// sets one -- e2e/global.setup.ts logs in once and every other spec starts
+// from that saved session; auth.spec.ts is the one that starts logged out.
+process.env.ADMIN_PASSWORD = 'e2e-test-password-1';
 
 // Imported, not executed directly, so server/index.js's own `isMain` guard
 // leaves the binding to us -- this process also owns the upstream fixtures

@@ -247,3 +247,12 @@ export interface TestResult {
   users?: { id: string; name: string }[];
   error?: string;
 }
+
+export interface AuthStatus {
+  /** Is a password configured at all -- false means trusted-LAN mode, the default. */
+  enabled: boolean;
+  /** True when ADMIN_PASSWORD (or _FILE) is set -- the password can't be changed from Settings while this is true. */
+  managedByEnv: boolean;
+  /** Does *this* browser already have a valid session. */
+  authenticated: boolean;
+}

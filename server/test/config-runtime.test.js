@@ -137,3 +137,47 @@ describe('effectiveSecret() -- the connection-test credential resolver', () => {
     assert.equal(cfg.effectiveSecret('jellyfin', '', 'http://attacker.example:8096'), '');
   });
 });
+
+describe('the admin password (server/auth.js handles sessions; this is just the credential)', () => {
+  test('nothing is configured yet -- verifyAdminPassword is always false, never throws', () => {
+    assert.equal(cfg.config.auth.enabled, false);
+    assert.equal(cfg.verifyAdminPassword('anything'), false);
+    assert.equal(cfg.verifyAdminPassword(''), false);
+    assert.equal(cfg.verifyAdminPassword(undefined), false);
+  });
+
+  test('setAdminPassword enables the gate and the exact password verifies', () => {
+    cfg.setAdminPassword('correct-horse-battery');
+    assert.equal(cfg.config.auth.enabled, true);
+    assert.equal(cfg.config.auth.managedByEnv, false);
+    assert.equal(cfg.verifyAdminPassword('correct-horse-battery'), true);
+  });
+
+  test('a wrong password does not verify', () => {
+    assert.equal(cfg.verifyAdminPassword('wrong-guess'), false);
+  });
+
+  test('the password is never written to settings.json in plain text', () => {
+    const onDisk = readFileSync(cfg.SETTINGS_FILE, 'utf8');
+    assert.equal(onDisk.includes('correct-horse-battery'), false);
+    assert.ok(onDisk.includes('passwordHash'));
+  });
+
+  test('setAdminPassword replaces the previous password entirely', () => {
+    cfg.setAdminPassword('a-brand-new-password');
+    assert.equal(cfg.verifyAdminPassword('correct-horse-battery'), false);
+    assert.equal(cfg.verifyAdminPassword('a-brand-new-password'), true);
+  });
+
+  test('rejects a password shorter than the minimum', () => {
+    assert.throws(() => cfg.setAdminPassword('short'), cfg.SettingsError);
+    // The old one is still the one that verifies -- a rejected change doesn't half-apply.
+    assert.equal(cfg.verifyAdminPassword('a-brand-new-password'), true);
+  });
+
+  test('clearAdminPassword turns the gate back off', () => {
+    cfg.clearAdminPassword();
+    assert.equal(cfg.config.auth.enabled, false);
+    assert.equal(cfg.verifyAdminPassword('a-brand-new-password'), false);
+  });
+});

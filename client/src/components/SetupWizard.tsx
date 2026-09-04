@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Eye, EyeOff, Loader2, Plug, Trash2, XCircle } from 'lucide-react';
-import { api } from '../api';
-import type { AppConfig, ServiceName, Settings, TestResult } from '../types';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Eye, EyeOff, Loader2, Lock, Plug, Trash2, XCircle } from 'lucide-react';
+import { api, ApiError } from '../api';
+import type { AppConfig, AuthStatus, ServiceName, Settings, TestResult } from '../types';
 
 interface Props {
   firstRun: boolean;
+  auth: AuthStatus;
+  onAuthChanged: () => void;
   onSaved: (config: AppConfig) => void;
   onCancel: () => void;
   notify: (message: string, tone?: 'ok' | 'error') => void;
@@ -58,6 +60,7 @@ const STEPS: { id: string; title: string; caption: string; services: ServiceName
   { id: 'media', title: 'Media servers', caption: 'Plex and Jellyfin', services: ['plex', 'jellyfin'] },
   { id: 'library', title: 'Library', caption: 'Radarr, Sonarr and SABnzbd', services: ['radarr', 'sonarr', 'sabnzbd'] },
   { id: 'requests', title: 'Requests', caption: 'Overseerr or Jellyseerr', services: ['seerr'] },
+  { id: 'security', title: 'Security', caption: 'Optional admin password', services: [] },
   { id: 'review', title: 'Review', caption: 'Check and save', services: [] },
 ];
 
@@ -74,7 +77,7 @@ const fromSettings = (s: Settings): Draft => ({
 const secretField = (s: ServiceName) => (s === 'plex' ? 'token' : 'apiKey');
 const isFilled = (d: ServiceDraft) => Boolean(d.url.trim() && (d.secret.trim() || d.secretSet));
 
-export default function SetupWizard({ firstRun, onSaved, onCancel, notify }: Props) {
+export default function SetupWizard({ firstRun, auth, onAuthChanged, onSaved, onCancel, notify }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
@@ -240,6 +243,8 @@ export default function SetupWizard({ firstRun, onSaved, onCancel, notify }: Pro
             </div>
           )}
 
+          {current.id === 'security' && <SecuritySettings auth={auth} onChanged={onAuthChanged} notify={notify} />}
+
           {current.id === 'review' && (
             <div className="flex flex-col gap-4">
               <div>
@@ -330,6 +335,89 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       {children}
       {hint && <span className="mt-1 block text-[11px] text-fog-500">{hint}</span>}
     </label>
+  );
+}
+
+/**
+ * Trusted-LAN mode is the default -- this is where that changes. A
+ * dedicated "Update"/"Remove" action rather than folding into the wizard's
+ * own save(): the password lives behind its own endpoint (PUT
+ * /api/auth/password, not /api/settings) since changing it needs the
+ * current one re-proven, which nothing else here does.
+ */
+function SecuritySettings({ auth, onChanged, notify }: { auth: AuthStatus; onChanged: () => void; notify: (message: string, tone?: 'ok' | 'error') => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (newPassword: string) => {
+    setSaving(true);
+    try {
+      await api.changePassword({ currentPassword: auth.enabled ? current : undefined, newPassword });
+      notify(newPassword ? (auth.enabled ? 'Password changed' : 'Password set') : 'Password protection removed');
+      setCurrent('');
+      setNext('');
+      setConfirm('');
+      onChanged();
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : 'Could not update the password', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (auth.managedByEnv) {
+    return (
+      <div className="flex flex-col gap-3">
+        <h3 className="text-lg font-bold">Security</h3>
+        <p className="text-sm text-fog-500">
+          The admin password is set by the <code className="rounded bg-night-800 px-1 py-0.5 text-xs">ADMIN_PASSWORD</code> environment variable and can’t be
+          changed here. Remove it (and restart) to manage it from Settings instead.
+        </p>
+      </div>
+    );
+  }
+
+  const canSubmitNew = next.length >= 8 && next === confirm && (!auth.enabled || current.length > 0);
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <h3 className="text-lg font-bold">Security</h3>
+        <p className="mt-1 text-sm text-fog-500">
+          {auth.enabled
+            ? 'A password is required to open Cuesheet on this network.'
+            : 'By default, Cuesheet is open to anyone who can reach it on your network. Set a password to require login.'}
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {auth.enabled && (
+          <Field label="Current password">
+            <input type="password" autoComplete="current-password" className={inputCls} value={current} onChange={(e) => setCurrent(e.target.value)} />
+          </Field>
+        )}
+        <Field label={auth.enabled ? 'New password' : 'Password'} hint="At least 8 characters">
+          <input type="password" autoComplete="new-password" className={inputCls} value={next} onChange={(e) => setNext(e.target.value)} />
+        </Field>
+        <Field label="Confirm">
+          <input type="password" autoComplete="new-password" className={inputCls} value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+        </Field>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" className="btn-primary" disabled={!canSubmitNew || saving} onClick={() => submit(next)}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+          {auth.enabled ? 'Change password' : 'Set password'}
+        </button>
+        {auth.enabled && (
+          <button type="button" className="btn-quiet text-rose-300" disabled={!current || saving} onClick={() => submit('')}>
+            Remove password protection
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

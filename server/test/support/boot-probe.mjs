@@ -7,6 +7,11 @@
  * separate real process, the same as a real container restart would be.
  * Prints one line of JSON: the caller parses stdout.
  */
-import { config, getSettings, anyServiceConfigured } from '../../config.js';
+import { config, getSettings, anyServiceConfigured, verifyAdminPassword } from '../../config.js';
 
-process.stdout.write(JSON.stringify({ config, settings: getSettings(), anyServiceConfigured: anyServiceConfigured() }));
+// An optional argv[2]: a candidate password to check verifyAdminPassword()
+// against on this boot, since config.auth itself never exposes the hash.
+const candidate = process.argv[2];
+const verifies = candidate === undefined ? null : verifyAdminPassword(candidate);
+
+process.stdout.write(JSON.stringify({ config, settings: getSettings(), anyServiceConfigured: anyServiceConfigured(), verifies }));

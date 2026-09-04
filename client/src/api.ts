@@ -1,4 +1,4 @@
-import type { AppConfig, CalendarItem, DownloadClientStats, DownloadItem, Errors, LifecycleItem, MediaDetail, MediaRequest, QuickLink, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
+import type { AppConfig, AuthStatus, CalendarItem, DownloadClientStats, DownloadItem, Errors, LifecycleItem, MediaDetail, MediaRequest, QuickLink, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
 
 export class ApiError extends Error {
   status: number;
@@ -44,4 +44,8 @@ export const api = {
   settings: () => get<Settings>('/api/settings'),
   saveSettings: (patch: unknown) => get<{ settings: Settings; config: AppConfig }>('/api/settings', json('PUT', patch)),
   testConnection: (body: { service: string; url: string; token?: string; apiKey?: string }) => get<TestResult>('/api/settings/test', json('POST', body)),
+  authStatus: () => get<AuthStatus>('/api/auth/status'),
+  login: (password: string) => get<{ ok: true }>('/api/auth/login', json('POST', { password })),
+  logout: () => get<{ ok: true }>('/api/auth/logout', json('POST', {})),
+  changePassword: (body: { currentPassword?: string; newPassword: string }) => get<{ enabled: boolean }>('/api/auth/password', json('PUT', body)),
 };

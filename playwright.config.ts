@@ -1,5 +1,10 @@
 import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const AUTH_FILE = path.join(__dirname, 'e2e/.auth/user.json');
 
 // Some sandboxes pre-fetch Chromium to this fixed path, pinned to whatever
 // revision happens to be cached there rather than whatever the installed
@@ -35,13 +40,18 @@ export default defineConfig({
     timeout: 30_000,
   },
   projects: [
+    // Logs into the fixture server's admin password once; every other
+    // project depends on it and starts from the session it saves.
+    { name: 'setup', testMatch: /global\.setup\.ts/, use: { launchOptions: { executablePath } } },
     {
       name: 'Desktop Chrome',
-      use: { ...devices['Desktop Chrome'], launchOptions: { executablePath } },
+      use: { ...devices['Desktop Chrome'], launchOptions: { executablePath }, storageState: AUTH_FILE },
+      dependencies: ['setup'],
     },
     {
       name: 'Mobile Chrome',
-      use: { ...devices['Pixel 7'], launchOptions: { executablePath } },
+      use: { ...devices['Pixel 7'], launchOptions: { executablePath }, storageState: AUTH_FILE },
+      dependencies: ['setup'],
     },
   ],
 });

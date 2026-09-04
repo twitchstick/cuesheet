@@ -33,7 +33,7 @@ and keeps every API key on the server.
 
 Every service is optional: configure what you have and the rest of the page simply doesn't render. All API keys stay inside the container, and artwork from your own servers is proxied through Cuesheet so the browser never holds a credential. Request artwork is the one exception: it comes straight from TMDB, as it does in Overseerr.
 
-There is no sign-in. Anyone who can reach the page sees the dashboard and can open Settings, so keep it on your own network.
+There is no sign-in by default: anyone who can reach the page sees the dashboard and can open Settings, so keep it on your own network. An optional admin password locks the whole app behind a login if you want one — see [Security](#security).
 
 ![Cuesheet](docs/screenshot.png)
 
@@ -112,9 +112,34 @@ The container starts as root only to make `/config` owned by `PUID:PGID` (defaul
 
 ## Security
 
-Cuesheet has no accounts and no sign-in: anyone who can open the page sees the
-dashboard and can change its settings. It is built to sit on a home network
-behind your router, not on the open internet.
+By default, Cuesheet has no accounts and no sign-in: anyone who can open the
+page sees the dashboard and can change its settings. It is built to sit on a
+home network behind your router, not on the open internet.
+
+### Optional admin password
+
+Set one password to require login for the whole app — every page, not just
+Settings. There are no accounts and no per-user permissions, just the one
+shared password and a session per device that logged in with it.
+
+- **Set it** from Settings → Security once Cuesheet is running, or bootstrap
+  it with `ADMIN_PASSWORD=your-password` (or the `_FILE` secrets convention
+  above) before first boot. An env var always wins over one saved through
+  Settings — the deliberate recovery path if you forget it: set the
+  environment variable and restart.
+- **A session lasts until you log out** on that device — there's no
+  automatic expiry — though browsers themselves cap how long they'll hold
+  onto any cookie (around 400 days), so a device left logged in for over a
+  year will eventually need to log in again anyway.
+- **Wrong-password attempts are rate-limited** (10 per 15 minutes per
+  address) and the password itself is hashed (scrypt) before it's ever
+  written to `settings.json` — never stored in plain text, unlike the
+  service credentials next to it.
+- **This does not add HTTPS.** The session cookie is `HttpOnly` and
+  `SameSite=Strict`, but travels in plain text like everything else Cuesheet
+  sends unless you terminate TLS at a reverse proxy — enough to keep a
+  password screen honest against someone who reaches the page, not against
+  someone who can already read your LAN's traffic.
 
 What it still does carefully:
 
@@ -152,9 +177,9 @@ What it still does carefully:
 
 What is left to you:
 
-- **Do not expose it to the internet.** With no sign-in, anyone who reaches the
-  page can read your service settings and change them. Use a VPN, or put it
-  behind a reverse proxy that does its own authentication.
+- **Do not expose it to the internet**, admin password or not — it's a
+  deterrent for anyone who reaches the page over plain HTTP, not a
+  substitute for a VPN or a reverse proxy doing real authentication and TLS.
 - **There is no HTTPS.** Terminate TLS at a reverse proxy if it leaves your LAN.
 
 Run `npm audit` in both the root and `client/` after changing dependencies;

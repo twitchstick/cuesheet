@@ -33,11 +33,12 @@ const SERVICE_ENV_VARS = [
   'SEERR_URL', 'SEERR_API_KEY', 'SEERR_USER_ID', 'SABNZBD_URL', 'SABNZBD_API_KEY',
 ];
 
-function boot(dataDir, extraEnv = {}) {
+function boot(dataDir, extraEnv = {}, passwordCandidate) {
   const env = { ...process.env, DATA_DIR: dataDir };
   for (const v of SERVICE_ENV_VARS) delete env[v];
   Object.assign(env, extraEnv);
-  const out = execFileSync(process.execPath, [BOOT_PROBE], { env, encoding: 'utf8' });
+  const args = passwordCandidate === undefined ? [BOOT_PROBE] : [BOOT_PROBE, passwordCandidate];
+  const out = execFileSync(process.execPath, args, { env, encoding: 'utf8' });
   return JSON.parse(out);
 }
 
@@ -229,6 +230,62 @@ describe('settings saved through the wizard survive a restart', () => {
       const { config } = boot(fresh);
       assert.equal(config.links.length, 1);
       assert.equal(config.links[0].label, 'Good link');
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the admin password across a restart', () => {
+  test('a password saved through the app is still there on the next boot', () => {
+    const fresh = mkdtempSync(path.join(tmpdir(), 'cuesheet-boot-password-'));
+    try {
+      save(fresh, { adminPassword: 'saved-across-restart-1' });
+      const { config, verifies } = boot(fresh, {}, 'saved-across-restart-1');
+      assert.equal(config.auth.enabled, true);
+      assert.equal(config.auth.managedByEnv, false);
+      assert.equal(verifies, true);
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+
+  test('ADMIN_PASSWORD overrides a saved password -- the deliberate forgot-password recovery path', () => {
+    const fresh = mkdtempSync(path.join(tmpdir(), 'cuesheet-boot-password-override-'));
+    try {
+      save(fresh, { adminPassword: 'the-old-saved-password' });
+      const { config, verifies } = boot(fresh, { ADMIN_PASSWORD: 'reset-via-env' }, 'reset-via-env');
+      assert.equal(config.auth.managedByEnv, true);
+      assert.equal(verifies, true);
+      // And the old saved one no longer works while the env var is set.
+      const { verifies: oldStillWorks } = boot(fresh, { ADMIN_PASSWORD: 'reset-via-env' }, 'the-old-saved-password');
+      assert.equal(oldStillWorks, false);
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+
+  test('ADMIN_PASSWORD also accepts the _FILE secrets convention', () => {
+    const fresh = mkdtempSync(path.join(tmpdir(), 'cuesheet-boot-password-file-'));
+    try {
+      const secretPath = path.join(fresh, 'admin_password');
+      writeFileSync(secretPath, 'from-a-docker-secret\n');
+      const { config, verifies } = boot(fresh, { ADMIN_PASSWORD_FILE: secretPath }, 'from-a-docker-secret');
+      assert.equal(config.auth.enabled, true);
+      assert.equal(config.auth.managedByEnv, true);
+      assert.equal(verifies, true);
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+
+  test('clearing the saved password (with no env var) turns the gate back off after a restart', () => {
+    const fresh = mkdtempSync(path.join(tmpdir(), 'cuesheet-boot-password-cleared-'));
+    try {
+      save(fresh, { adminPassword: 'will-be-cleared' });
+      save(fresh, { adminPassword: '' });
+      const { config } = boot(fresh);
+      assert.equal(config.auth.enabled, false);
     } finally {
       rmSync(fresh, { recursive: true, force: true });
     }

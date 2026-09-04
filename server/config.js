@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { assertReachableUrl } from './http.js';
 
 const env = (key, fallback = '') => (process.env[key] ?? fallback).trim();
@@ -34,6 +35,31 @@ function envSecret(key, fallback = '') {
 export const APP_TITLE = 'Cuesheet';
 const DEFAULT_RECENT_LIMIT = 15;
 const RECENT_LIMIT_RANGE = [3, 40];
+
+const MIN_PASSWORD_LENGTH = 8;
+const SCRYPT_KEYLEN = 64;
+
+/** salt:hash, both hex -- scrypt with a fresh random salt each time a password is set. */
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(password, salt, SCRYPT_KEYLEN);
+  return `${salt.toString('hex')}:${hash.toString('hex')}`;
+}
+
+/** Constant-time by construction: scrypt's output is always SCRYPT_KEYLEN
+ * bytes regardless of the candidate's length, so there's no length-derived
+ * timing signal for an attacker to read before timingSafeEqual ever runs. */
+function verifyPasswordHash(candidate, stored) {
+  const [saltHex, hashHex] = String(stored ?? '').split(':');
+  if (!saltHex || !hashHex) return false;
+  try {
+    const expected = Buffer.from(hashHex, 'hex');
+    const actual = crypto.scryptSync(candidate, Buffer.from(saltHex, 'hex'), expected.length);
+    return crypto.timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
+}
 
 export const SERVICES = ['plex', 'jellyfin', 'radarr', 'sonarr', 'seerr', 'sabnzbd'];
 /** Name of the credential field for each service. */
@@ -90,7 +116,13 @@ export const config = {
   seerr: {},
   sabnzbd: {},
   links: [],
+  auth: { enabled: false, managedByEnv: false },
 };
+
+// Private: whichever password hash is currently authoritative, and where it
+// came from. Not on `config` itself -- nothing outside verifyAdminPassword()
+// needs the hash, and config is otherwise handed around fairly freely.
+let authSource = { hash: null, managedByEnv: false };
 
 /** Saved settings win over environment variables, field by field. */
 function merged() {
@@ -118,6 +150,54 @@ function rebuild() {
     config[s] = { ...fields, enabled: Boolean(fields.url && fields[SECRET_FIELD[s]]) };
   }
   config.links = (Array.isArray(saved.links) ? saved.links : []).map(loadLink).filter(Boolean);
+
+  // ADMIN_PASSWORD (or _FILE) always wins over a saved one -- the deliberate
+  // exception to "saved settings win," and the recovery path for a forgotten
+  // password: set the env var and restart. Hashed here (with a fresh salt
+  // every rebuild) so verifyAdminPassword() always compares against a
+  // fixed-length scrypt output regardless of source, rather than the env
+  // password's own raw length being an observable timing signal.
+  const envPassword = envSecret('ADMIN_PASSWORD') || null;
+  const savedHash = typeof saved.security?.passwordHash === 'string' ? saved.security.passwordHash : null;
+  authSource = envPassword ? { hash: hashPassword(envPassword), managedByEnv: true } : { hash: savedHash, managedByEnv: false };
+  config.auth = { enabled: Boolean(authSource.hash), managedByEnv: authSource.managedByEnv };
+}
+
+/** True only if the given password matches whichever source is currently
+ * authoritative. Always false (never throws) when no password is configured
+ * at all -- callers must check config.auth.enabled separately if they need
+ * to tell "wrong password" apart from "no gate to begin with." */
+export function verifyAdminPassword(candidate) {
+  if (typeof candidate !== 'string' || !candidate || !authSource.hash) return false;
+  return verifyPasswordHash(candidate, authSource.hash);
+}
+
+/**
+ * Set (or replace) the saved admin password. Callers are responsible for
+ * having already verified the *current* password first (this only persists
+ * the new one) and for refusing the request entirely when
+ * config.auth.managedByEnv is true, since ADMIN_PASSWORD would just
+ * override whatever gets saved here anyway.
+ */
+export function setAdminPassword(newPassword) {
+  if (typeof newPassword !== 'string' || newPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new SettingsError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
+  if (newPassword.length > 200) throw new SettingsError('Password is too long');
+  const next = { ...saved, security: { ...(saved.security ?? {}), passwordHash: hashPassword(newPassword) } };
+  writeSettingsFile(next);
+  saved = next;
+  rebuild();
+}
+
+/** Remove the saved password -- back to trusted-LAN mode, unless ADMIN_PASSWORD is still set. */
+export function clearAdminPassword() {
+  const security = { ...(saved.security ?? {}) };
+  delete security.passwordHash;
+  const next = { ...saved, security };
+  writeSettingsFile(next);
+  saved = next;
+  rebuild();
 }
 
 /**
