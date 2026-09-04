@@ -25,10 +25,10 @@ and keeps every API key on the server.
 - **Now Playing** – the front page leads with it: every active Plex and Jellyfin stream with poster, user, player, progress, direct/transcode, resolution and bandwidth, each tinted in its server's own colour.
 - **Recently Added** – a scrolling poster row merged from Plex and Jellyfin, newest first, as long as you like.
 - **Release calendar** – Radarr movie releases (cinema / digital / physical) and Sonarr episode air dates, with a check mark on anything already downloaded. The front page shows the week ahead; the Release Calendar tab shows a whole month and switches between them. Busy days scroll inside their own cell rather than stretching the row.
-- **Requests** – what the house has asked for through Overseerr or Jellyseerr and where each one stands. Requesting itself happens in Seerr: the *Request media* button opens it in a new tab.
+- **Requests, traced end to end** – what the house has asked for through Overseerr or Jellyseerr, followed as one continuous thread from *requested* through *monitored*, *downloading*, *importing* to *available* — not four separate glances across four separate tools. A title that's stuck says why, in Radarr/Sonarr's own words, right on the card. Requesting itself still happens in Seerr: the *Request media* button opens it in a new tab. The front page shows a quiet summary — how many are waiting, moving, landed — that opens onto the full page; a title that actually needs a look is pulled up and shown right there.
 - **Bandwidth** – what all the streaming is costing the server, split between remote and local, with a figure on every stream.
 - **Details on click** – open any poster or release for its synopsis, runtime, genres, cast and crew; open a stream for its signal path — codecs in and out, resolution, container, subtitles, and why it is transcoding.
-- **Download queue** – what Radarr and Sonarr are currently fetching: progress, size, time left, and status, from whichever download client you have set up in them. Failed and stalled items sort to the top so they don't get lost among what's just quietly downloading. Add SABnzbd and a slim strip above the queue shows current speed and free space on the download volume.
+- **Download queue, live** – the same trace Requests uses, for whatever Radarr and Sonarr are actively fetching right now, whether or not it came from a request. Progress creeps forward between refreshes instead of jumping once a poll lands. Failed, stalled and paused items say so plainly rather than reading as a generic "downloading." Add SABnzbd and a slim strip above the queue shows current speed from whichever download client you actually use.
 - **Quick links** – a row of squares for anything else on your network — Unraid's own UI, Portainer, Tautulli, whatever else you'd otherwise bookmark separately. Add a name and an address; the icon is the site's own favicon by default, with a small curated set to fall back on, or point it at any icon of your own — a self-hosted [selfh.st/icons](https://selfh.st/icons/) mirror, say.
 
 Every service is optional: configure what you have and the rest of the page simply doesn't render. All API keys stay inside the container, and artwork from your own servers is proxied through Cuesheet so the browser never holds a credential. Request artwork is the one exception: it comes straight from TMDB, as it does in Overseerr.
@@ -129,6 +129,9 @@ What it still does carefully:
   design, but `169.254.0.0/16` and the cloud metadata hostnames are blocked, so
   the open connection test cannot be turned into a probe for them. Redirects
   are followed by Cuesheet itself and every hop is re-checked.
+- **Every response from a configured service is capped**, not just artwork —
+  a Plex, Radarr, Sonarr, Seerr or SABnzbd instance that hands back an
+  oversized or malformed body can't run the server out of memory.
 - **Cross-site writes are rejected.** A settings change arriving with another
   site's Origin is refused, which closes the drive-by and DNS-rebinding routes
   into an app with no sign-in.

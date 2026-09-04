@@ -57,6 +57,9 @@ export async function recentRequests(cfg, take = 12) {
     results.map(async (req) => {
       const mediaType = req.type === 'tv' ? 'tv' : 'movie';
       const tmdbId = req.media?.tmdbId;
+      // Only TV requests carry this -- it's the bridge to Sonarr, which is
+      // TVDB-keyed rather than TMDB-keyed like everything else here.
+      const tvdbId = mediaType === 'tv' ? req.media?.tvdbId ?? null : null;
       let info = null;
       if (tmdbId) {
         try {
@@ -69,6 +72,7 @@ export async function recentRequests(cfg, take = 12) {
         id: req.id,
         mediaType,
         tmdbId: tmdbId ?? null,
+        tvdbId,
         title: info?.title ?? `TMDB #${tmdbId ?? '?'}`,
         year: info?.year ?? null,
         poster: info?.poster ?? null,

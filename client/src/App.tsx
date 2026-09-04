@@ -15,7 +15,7 @@ import MediaDetailPanel from './components/MediaDetailPanel';
 import StreamDetailPanel from './components/StreamDetailPanel';
 import { usePoll } from './hooks/usePoll';
 import { addDays, greeting, mondayOf, toIsoDate } from './lib/format';
-import type { AppConfig, CalendarItem, DownloadItem, RecentItem, SetupStatus, Stream, View } from './types';
+import type { AppConfig, CalendarItem, LifecycleItem, RecentItem, SetupStatus, Stream, View } from './types';
 
 /** What the detail panel is showing. A stream is held by id so it stays live. */
 type Selection =
@@ -25,6 +25,8 @@ type Selection =
 // Now Playing leads the overview, so there is no separate streams route; an
 // old #streams link falls through to the overview.
 const VIEWS: View[] = ['overview', 'recent', 'calendar', 'queue', 'requests', 'setup'];
+// What needs a look floats to the top of Downloads; within a status, whatever's furthest along.
+const DOWNLOAD_PRIORITY: Record<string, number> = { failed: 0, warning: 1, stalled: 2, downloading: 3, importing: 4, queued: 5, paused: 6 };
 const viewFromHash = (): View => {
   const v = window.location.hash.replace(/^#\/?/, '') as View;
   return VIEWS.includes(v) ? v : 'overview';
@@ -102,7 +104,10 @@ export default function App() {
   const monthCalendar = usePoll(monthFetcher, 15 * 60_000, hasCalendar && view === 'calendar');
 
   const queue = usePoll(api.queue, 20_000, hasQueue);
-  const requests = usePoll(api.requests, 60_000, hasSeerr);
+  // Requests and Downloads share this one poll -- it carries every
+  // Seerr-backed request plus any queue item with no request behind it, and
+  // each view filters to what it actually shows.
+  const requests = usePoll(api.lifecycle, 60_000, hasQueue || hasSeerr);
   // Rarely changes, so no live polling — the editor refreshes it after a save.
   const links = usePoll(api.links, 30 * 60_000, true);
 
@@ -155,10 +160,12 @@ export default function App() {
     (item: CalendarItem) => setSelected({ kind: 'media', id: item.id, title: item.title, subtitle: item.subtitle, poster: item.poster, type: item.type }),
     [],
   );
-  const openQueueItem = useCallback(
-    (item: DownloadItem) => setSelected({ kind: 'media', id: item.id, title: item.title, subtitle: item.subtitle, poster: item.poster, type: item.type }),
-    [],
-  );
+  const openQueueItem = useCallback((item: LifecycleItem) => {
+    // Every trace shown on Downloads is currently in the queue, so it always
+    // has one -- Requests' non-downloading rows just don't pass onSelect at all.
+    if (!item.queueId) return;
+    setSelected({ kind: 'media', id: item.queueId, title: item.title, subtitle: item.subtitle ?? '', poster: item.poster, type: item.mediaType === 'tv' ? 'episode' : 'movie' });
+  }, []);
   const closePanel = useCallback(() => setSelected(null), []);
 
   // The session is looked up fresh each render so the panel keeps ticking with
@@ -181,14 +188,30 @@ export default function App() {
     <MonthCalendar month={month} today={monthCalendar.data?.today ?? today} items={monthCalendar.data?.items ?? null} errors={monthCalendar.data?.errors ?? null} loading={monthCalendar.loading} onMonth={setMonth} onSelect={openCalendar} />
   );
   const requestsView = (full: boolean) =>
-    hasSeerr && <Requests requests={requests.data?.items ?? null} requestsError={requests.error} seerrUrl={config?.seerrUrl ?? ''} full={full} />;
+    hasSeerr && (
+      <Requests
+        requests={requests.data?.items ?? null}
+        requestsError={requests.error}
+        seerrUrl={config?.seerrUrl ?? ''}
+        full={full}
+        onOpen={() => navigate('requests')}
+        updatedAt={requests.updatedAt}
+      />
+    );
+  // Downloads and Requests read the same poll -- this is just the slice
+  // that's actually in the queue right now, worst-off first so a failed or
+  // stalled item doesn't get lost among what's quietly moving.
+  const downloadItems = useMemo(() => {
+    const items = (requests.data?.items ?? []).filter((r) => r.stage === 'downloading' || r.stage === 'importing');
+    return [...items].sort((a, b) => (DOWNLOAD_PRIORITY[a.downloadStatus ?? a.stage] ?? 9) - (DOWNLOAD_PRIORITY[b.downloadStatus ?? b.stage] ?? 9));
+  }, [requests.data]);
 
   return (
     <div className="flex min-h-screen">
       <Sidebar title={title} view={view} available={available} onNavigate={navigate} services={health} />
 
       <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-        <TopBar title={title} serverName={serverName} greeting={hello} seerrUrl={config?.seerrUrl ?? ''} />
+        <TopBar title={title} serverName={serverName} greeting={hello} />
         <MobileNav view={view} available={available} onNavigate={navigate} />
         {view === 'overview' && <MobileGreeting serverName={serverName} greeting={hello} />}
 
@@ -219,7 +242,14 @@ export default function App() {
               {hasCalendar && <div className="hidden md:block">{weekView}</div>}
               {hasQueue && (
                 <div className="hidden md:block">
-                  <DownloadQueue items={queue.data?.items ?? null} errors={queueErrors} loading={queue.loading} client={queue.data?.client ?? null} onSelect={openQueueItem} />
+                  <DownloadQueue
+                    items={requests.data ? downloadItems : null}
+                    errors={queueErrors}
+                    loading={requests.loading}
+                    client={queue.data?.client ?? null}
+                    onSelect={openQueueItem}
+                    updatedAt={requests.updatedAt}
+                  />
                 </div>
               )}
               {hasSeerr && <div className="hidden md:block">{requestsView(false)}</div>}
@@ -227,7 +257,17 @@ export default function App() {
           )}
           {view === 'recent' && hasMediaServer && <RecentlyAdded items={recent.data?.items ?? null} errors={recent.data?.errors ?? null} loading={recent.loading} full onSelect={openRecent} />}
           {view === 'calendar' && monthView}
-          {view === 'queue' && hasQueue && <DownloadQueue items={queue.data?.items ?? null} errors={queueErrors} loading={queue.loading} client={queue.data?.client ?? null} full onSelect={openQueueItem} />}
+          {view === 'queue' && hasQueue && (
+            <DownloadQueue
+              items={requests.data ? downloadItems : null}
+              errors={queueErrors}
+              loading={requests.loading}
+              client={queue.data?.client ?? null}
+              full
+              onSelect={openQueueItem}
+              updatedAt={requests.updatedAt}
+            />
+          )}
           {view === 'requests' && requestsView(true)}
           {view === 'setup' && <SetupWizard firstRun={Boolean(setup?.needsSetup)} onSaved={onSettingsSaved} onCancel={() => navigate('overview')} notify={notify} />}
           {view !== 'overview' && !available.has(view) && <div className="card p-6 text-sm text-fog-500">That section isn’t enabled. Configure the matching service to turn it on.</div>}

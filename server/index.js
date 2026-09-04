@@ -296,6 +296,161 @@ api.get('/requests', requireSeerr, async (_req, res, next) => {
   }
 });
 
+const LIFECYCLE_STAGE = { requested: 0, monitored: 1, downloading: 2, importing: 3, available: 4 };
+
+/** What Seerr's own status already tells us, before any Radarr/Sonarr refinement. */
+function baseLifecycleStage(mediaStatus) {
+  if (mediaStatus === 'available') return 'available';
+  if (mediaStatus === 'partial') return 'importing'; // some of it has already landed
+  if (mediaStatus === 'processing') return 'monitored';
+  return 'requested';
+}
+
+/**
+ * One title's journey from a Seerr request through to a library file, as a
+ * single thread instead of four separate glances across four tools. Seerr
+ * already syncs a coarse status from Radarr/Sonarr (requested/monitored/
+ * available), which is trustworthy and free; the one thing it can't tell us
+ * is "downloading right now, this much of it, this long left" -- that needs
+ * a live match against the download queue, keyed through each request's
+ * TMDB (Radarr) or TVDB (Sonarr) id since that's the only id Seerr knows.
+ */
+async function lifecycleFor(r, queueItems, health) {
+  let stage = baseLifecycleStage(r.mediaStatus);
+  let progress = null;
+  let timeleft = null;
+  let statusDetail = null;
+  let stallReason = null;
+  let downloadStatus = null;
+  let subtitle = null;
+  let queueId = null;
+
+  const base = { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId };
+  if (stage === 'available') return base;
+
+  try {
+    // Checked here, not just inside findByTmdbId -- Seerr's tmdbId lands
+    // straight in a cache key below, so an untrusted or misbehaving Seerr
+    // handing back garbage/rotating values must never reach that key build,
+    // or every distinct value plants another entry the cache never sweeps.
+    if (r.mediaType === 'movie' && Number.isInteger(r.tmdbId) && config.radarr.enabled) {
+      const found = await cached(`lifecycle:radarr:${r.tmdbId}`, 5 * 60_000, () => radarr.findByTmdbId(config.radarr, r.tmdbId));
+      if (found) {
+        const row = queueItems.find((q) => q.id === `radarr-${found.id}`);
+        if (row) {
+          stage = row.status === 'importing' ? 'importing' : 'downloading';
+          progress = row.progress;
+          timeleft = row.timeleft;
+          statusDetail = row.statusDetail;
+          downloadStatus = row.status;
+          subtitle = row.subtitle || null;
+          queueId = row.id;
+        } else if (found.hasFile) stage = 'available';
+        else if (found.monitored && LIFECYCLE_STAGE[stage] < LIFECYCLE_STAGE.monitored) stage = 'monitored';
+      }
+    } else if (r.mediaType === 'tv' && Number.isInteger(r.tvdbId) && config.sonarr.enabled) {
+      const found = await cached(`lifecycle:sonarr:${r.tvdbId}`, 5 * 60_000, () => sonarr.findByTvdbId(config.sonarr, r.tvdbId));
+      if (found) {
+        const row = queueItems.find((q) => q.source === 'sonarr' && q.seriesId === found.id);
+        if (row) {
+          stage = row.status === 'importing' ? 'importing' : 'downloading';
+          progress = row.progress;
+          timeleft = row.timeleft;
+          statusDetail = row.statusDetail;
+          downloadStatus = row.status;
+          subtitle = row.subtitle || null;
+          queueId = row.id;
+        } else if (found.hasFile) stage = 'available';
+        else if (found.monitored && LIFECYCLE_STAGE[stage] < LIFECYCLE_STAGE.monitored) stage = 'monitored';
+      }
+    }
+  } catch (err) {
+    // The Radarr/Sonarr refinement is a bonus on top of Seerr's own status,
+    // never a reason to drop the request off the trace entirely.
+    console.warn(`[lifecycle] ${err.message}`);
+  }
+
+  // Stuck at "monitored" -- Radarr/Sonarr has it, but nothing is moving.
+  // The best account Cuesheet has for that isn't a fact about this title
+  // specifically (nothing here is), it's whichever problem that service is
+  // currently reporting about itself -- a dead indexer, an unreachable
+  // download client. Not proof, but the most useful guess available.
+  if (stage === 'monitored') {
+    const issue = health[r.mediaType === 'movie' ? 'radarr' : 'sonarr'][0];
+    if (issue) stallReason = issue.message;
+  }
+
+  return { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId };
+}
+
+/**
+ * A queue row with no matching Seerr request -- added straight in Radarr/
+ * Sonarr, outside the request flow entirely. Downloads shows these too (it
+ * never used to need a request to appear), just without a "requested"
+ * backstory Cuesheet doesn't actually have.
+ */
+function orphanLifecycleItem(row) {
+  return {
+    // A string, not a digit-stripped number -- "radarr-123" and "sonarr-123"
+    // would otherwise collapse onto the same id and collide as React keys.
+    id: `queue-${row.id}`,
+    mediaType: row.type === 'episode' ? 'tv' : 'movie',
+    tmdbId: null,
+    tvdbId: null,
+    title: row.title,
+    year: null,
+    poster: row.poster,
+    requestStatus: 'approved',
+    mediaStatus: 'processing',
+    seasons: [],
+    requestedBy: '',
+    avatar: null,
+    createdAt: 0,
+    stage: row.status === 'importing' ? 'importing' : 'downloading',
+    progress: row.progress,
+    timeleft: row.timeleft,
+    statusDetail: row.statusDetail,
+    stallReason: null,
+    downloadStatus: row.status,
+    subtitle: row.subtitle || null,
+    fromRequest: false,
+    queueId: row.id,
+  };
+}
+
+api.get('/lifecycle', async (_req, res, next) => {
+  try {
+    const result = await cached('lifecycle', 30_000, async () => {
+      const requests = config.seerr.enabled ? await cached('requests', 30_000, () => seerr.recentRequests(config.seerr, 12)) : [];
+      const queueTasks = [];
+      if (config.radarr.enabled) queueTasks.push(['radarr', () => radarr.queue(config.radarr)]);
+      if (config.sonarr.enabled) queueTasks.push(['sonarr', () => sonarr.queue(config.sonarr)]);
+      // A distinct cache key from /api/queue's -- that route caches a
+      // differently-shaped { items, errors, client } under 'queue', and
+      // sharing the key would hand it this route's narrower object instead.
+      const { items: queueItems } = await cached('lifecycle-queue', 12_000, () => gather(queueTasks));
+
+      const healthTasks = [];
+      if (config.radarr.enabled) healthTasks.push(['radarr', () => radarr.health(config.radarr)]);
+      if (config.sonarr.enabled) healthTasks.push(['sonarr', () => sonarr.health(config.sonarr)]);
+      const { items: healthItems } = await cached('lifecycle-health', 60_000, () => gather(healthTasks));
+      const bySeverity = { error: 0, warning: 1 };
+      const sortedHealth = [...healthItems].sort((a, b) => bySeverity[a.severity] - bySeverity[b.severity]);
+      const health = { radarr: sortedHealth.filter((h) => h.source === 'radarr'), sonarr: sortedHealth.filter((h) => h.source === 'sonarr') };
+
+      const items = await Promise.all(
+        requests.filter((r) => r.mediaStatus !== 'deleted').map((r) => lifecycleFor(r, queueItems, health)),
+      );
+      const claimed = new Set(items.map((i) => i.queueId).filter(Boolean));
+      const orphans = queueItems.filter((q) => !claimed.has(q.id)).map(orphanLifecycleItem);
+      return { items: [...items, ...orphans] };
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Image proxy: the browser never needs upstream URLs or credentials.
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 const IMAGE_SOURCES = {

@@ -71,7 +71,10 @@ export async function fetchJson(url, options = {}) {
   if (!res.ok) {
     let detail = '';
     try {
-      const text = await res.text();
+      // Capped like everything else here -- an error body is attacker-shaped
+      // too, from a service this app was only ever asked to trust with data,
+      // not with however much memory it feels like handing back.
+      const text = (await readCappedBody(res)).toString('utf8');
       try {
         detail = JSON.parse(text)?.message ?? text;
       } catch {
@@ -85,7 +88,7 @@ export async function fetchJson(url, options = {}) {
     throw new UpstreamError(`${safeHost(url)} responded ${res.status}${detail ? `: ${detail}` : ''}`, res.status);
   }
   if (res.status === 204) return null;
-  const text = await res.text();
+  const text = (await readCappedBody(res)).toString('utf8');
   if (!text) return null;
   try {
     return JSON.parse(text);

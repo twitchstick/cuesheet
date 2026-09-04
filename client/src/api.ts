@@ -1,4 +1,4 @@
-import type { AppConfig, CalendarItem, DownloadClientStats, DownloadItem, Errors, MediaDetail, MediaRequest, QuickLink, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
+import type { AppConfig, CalendarItem, DownloadClientStats, DownloadItem, Errors, LifecycleItem, MediaDetail, MediaRequest, QuickLink, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
 
 export class ApiError extends Error {
   status: number;
@@ -39,6 +39,7 @@ export const api = {
   links: () => get<{ items: QuickLink[] }>('/api/links'),
   saveLinks: (items: QuickLink[]) => get<{ items: QuickLink[] }>('/api/links', json('PUT', { items })),
   requests: () => get<{ items: MediaRequest[] }>('/api/requests'),
+  lifecycle: () => get<{ items: LifecycleItem[] }>('/api/lifecycle'),
   setupStatus: () => get<SetupStatus>('/api/setup/status'),
   settings: () => get<Settings>('/api/settings'),
   saveSettings: (patch: unknown) => get<{ settings: Settings; config: AppConfig }>('/api/settings', json('PUT', patch)),

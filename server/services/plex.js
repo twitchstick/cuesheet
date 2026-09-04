@@ -135,9 +135,18 @@ export async function details(cfg, ratingKey) {
   };
 }
 
+// Every thumb/art field Cuesheet reads off a Plex item (thumb, art,
+// parentThumb, grandparentThumb, grandparentArt) is shaped like this --
+// unlike Jellyfin/Radarr/Sonarr's proxies next door, this used to only
+// check the value started with "/", which a protocol-relative path like
+// "//attacker.example/x" also satisfies. Plex's own /photo/:/transcode
+// endpoint fetches whatever "url=" it's given, so that let the unauthenticated
+// /api/image route turn a viewer's own Plex server into an open fetch proxy.
+const PLEX_IMAGE_PATH = /^\/library\/metadata\/\d+\/(thumb|art)(\/\d+)?$/;
+
 /** Resolve a Plex thumb path into a sized transcode URL + headers for the proxy. */
 export function imageRequest(cfg, ref, { width = 300, height = 450 } = {}) {
-  if (!ref.startsWith('/')) throw new Error('Invalid Plex image path');
+  if (!PLEX_IMAGE_PATH.test(ref)) throw new Error('Invalid Plex image path');
   const params = new URLSearchParams({
     width: String(width),
     height: String(height),

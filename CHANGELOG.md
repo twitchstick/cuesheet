@@ -5,6 +5,60 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## [2.8.0] — 2026-09-04
+
+### Added
+
+- **Signal Trace.** A request is now one continuous thread instead of four
+  separate glances across four tools — *requested* in Seerr, picked up
+  and *monitored* by Radarr or Sonarr, *downloading*, *importing*, then
+  *available*, drawn as a single lit path with a live head instead of a
+  status chip. The fill creeps forward between refreshes on its own,
+  projected from Radarr/Sonarr's own time-left estimate, and corrects
+  itself the moment a real poll lands. A title stuck at Monitored says
+  why, in whichever problem Radarr or Sonarr is reporting about itself
+  right now — not a fact about that title, the best account Cuesheet has
+  for it.
+- **Download queue, retraced.** Every queue item gets the same trace,
+  whether or not it came through a request — one added straight in
+  Radarr/Sonarr just starts lit at Monitored with no invented backstory.
+  Failed, stalled and paused items keep saying so plainly (in red, amber,
+  grey) rather than reading as a flat "downloading."
+- **The front page gets the summary, not the list.** Requests now shows a
+  single line — how many are waiting, moving, landed — that opens onto
+  the full trace. If something actually needs a look, that one request's
+  own compact trace is pulled up and shown right there; otherwise the
+  tile stays quiet.
+
+### Changed
+
+- **One "Request media" button, not two.** It used to appear on every
+  page's header and again wherever the Requests section itself rendered.
+  Now it's only where it's actually contextual: the front page and the
+  Requests tab.
+- **The download client strip drops free space.** Only current speed is
+  shown now; disk headroom wasn't earning its place there.
+
+### Fixed
+
+- **A crafted Plex image path could reach an open fetch proxy.** The
+  unauthenticated image route only checked that a path started with `/`,
+  which a protocol-relative value (`//attacker.example/x`) also satisfies
+  — and Plex's own transcode endpoint will fetch whatever `url=` it's
+  given. It now requires the exact shape a real Plex thumb/art path has.
+
+### Security
+
+- **Every upstream response is now capped**, not just artwork — the same
+  size limit the image proxy already enforced now applies to every JSON
+  call Cuesheet makes to a configured service, so a compromised or
+  misbehaving Radarr, Sonarr, Seerr, Plex or SABnzbd can't run the server
+  out of memory with an oversized reply.
+- **A request's TMDB/TVDB id is validated before it can ever reach a
+  cache key.** An untrusted or misbehaving Seerr handing back
+  non-numeric or rotating values could otherwise plant an unbounded
+  number of entries in a cache with no eviction.
+
 ## [2.7.1] — 2026-09-03
 
 ### Fixed

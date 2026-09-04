@@ -103,3 +103,28 @@ export function imageRequest(cfg, ref) {
   if (!/^\d+$/.test(ref)) throw new Error('Invalid Radarr movie id');
   return { url: `${cfg.url}/api/v3/mediacover/${ref}/poster-250.jpg`, headers: headers(cfg) };
 }
+
+/**
+ * Find the Radarr movie behind a TMDB id -- the bridge from a Seerr request
+ * (which only knows TMDB) to Radarr's own internal id, which the queue and
+ * everything else here is keyed on. Radarr's list endpoint takes tmdbId as
+ * a query filter and returns at most one match.
+ */
+export async function findByTmdbId(cfg, tmdbId) {
+  if (!Number.isInteger(tmdbId)) return null;
+  const params = new URLSearchParams({ tmdbId: String(tmdbId) });
+  const matches = await fetchJson(`${cfg.url}/api/v3/movie?${params}`, { headers: headers(cfg) });
+  const movie = Array.isArray(matches) ? matches[0] : null;
+  if (!movie?.id) return null;
+  return { id: movie.id, monitored: Boolean(movie.monitored), hasFile: Boolean(movie.hasFile) };
+}
+
+/** Radarr's own self-check: dead indexers, an unreachable download client, low disk space. */
+export async function health(cfg) {
+  const checks = await fetchJson(`${cfg.url}/api/v3/health`, { headers: headers(cfg) });
+  // "notice" (e.g. "update available") isn't a problem -- only surface what
+  // Radarr itself calls a warning or an error.
+  return (Array.isArray(checks) ? checks : [])
+    .filter((c) => c.type === 'error' || c.type === 'warning')
+    .map((c, i) => ({ id: `radarr-health-${i}`, source: 'radarr', severity: c.type, message: c.message, wikiUrl: c.wikiUrl || null }));
+}

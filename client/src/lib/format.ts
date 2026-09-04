@@ -151,6 +151,15 @@ export function timeLeftLabel(timeleft: string | null): string | null {
   return 'almost done';
 }
 
+/** The same "HH:MM:SS" / "D.HH:MM:SS" Radarr/Sonarr send, as raw milliseconds -- for projecting a trace forward between polls rather than displaying it. */
+export function timeLeftMs(timeleft: string | null): number | null {
+  if (!timeleft) return null;
+  const m = timeleft.match(/^(?:(\d+)\.)?(\d+):(\d+):(\d+)$/);
+  if (!m) return null;
+  const [, d, h, mi, s] = m;
+  return (((Number(d ?? 0) * 24 + Number(h)) * 60 + Number(mi)) * 60 + Number(s)) * 1000;
+}
+
 /**
  * A download's tally light. Failed reuses the same red as a stream's "on
  * air" — this is a broadcast tally, not a traffic light, so the colour

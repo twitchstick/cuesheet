@@ -1,33 +1,24 @@
-import { ArrowUpRight } from 'lucide-react';
 import { Logo } from './Sidebar';
 
 interface Props {
   title: string;
   serverName: string;
   greeting: string;
-  /** Seerr's address, empty when it isn't configured. */
-  seerrUrl: string;
 }
 
-export default function TopBar({ title, serverName, greeting, seerrUrl }: Props) {
+// "Request media" used to live here too, on every page -- but the Requests
+// section already carries its own copy of that button wherever it actually
+// renders (the front page tile, the Requests tab), so this one was just a
+// second, out-of-context copy of the same button on every other page.
+export default function TopBar({ title, serverName, greeting }: Props) {
   return (
-    <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-      <div className="flex items-center gap-4">
-        <div className="lg:hidden">
-          <Logo title={title} />
-        </div>
-        <div className="hidden lg:block">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-fog-500">{serverName}</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">{greeting}</h1>
-        </div>
+    <header className="mb-6 flex flex-wrap items-center gap-4">
+      <div className="lg:hidden">
+        <Logo title={title} />
       </div>
-      <div className="flex items-center gap-2">
-        {seerrUrl && (
-          <a href={seerrUrl} target="_blank" rel="noreferrer noopener" className="btn-primary" title="Opens Seerr in a new tab">
-            <span>Request<span className="hidden sm:inline"> media</span></span>
-            <ArrowUpRight className="h-4 w-4" />
-          </a>
-        )}
+      <div className="hidden lg:block">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-fog-500">{serverName}</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">{greeting}</h1>
       </div>
     </header>
   );

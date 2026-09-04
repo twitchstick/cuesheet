@@ -81,6 +81,9 @@ export async function queue(cfg) {
       id: `sonarr-${r.episodeId}`,
       source: 'sonarr',
       type: 'episode',
+      // Not part of the public DownloadItem shape -- kept only so the
+      // lifecycle route can match a queue row back to its series.
+      seriesId: r.seriesId ?? null,
       title: r.series?.title ?? 'Unknown series',
       subtitle: r.episode ? `${episodeCode(r.episode.seasonNumber, r.episode.episodeNumber)}${r.episode.title ? ` · ${r.episode.title}` : ''}` : '',
       sizeBytes: Number(r.size) || 0,
@@ -97,4 +100,35 @@ export async function queue(cfg) {
 export function imageRequest(cfg, ref) {
   if (!/^\d+$/.test(ref)) throw new Error('Invalid Sonarr series id');
   return { url: `${cfg.url}/api/v3/mediacover/${ref}/poster-250.jpg`, headers: headers(cfg) };
+}
+
+/**
+ * Find the Sonarr series behind a TVDB id -- Sonarr's world is TVDB-keyed,
+ * not TMDB, so a Seerr TV request needs this bridge before it can be
+ * matched against Sonarr's own internal id (what the queue is keyed on).
+ */
+export async function findByTvdbId(cfg, tvdbId) {
+  if (!Number.isInteger(tvdbId)) return null;
+  const params = new URLSearchParams({ tvdbId: String(tvdbId) });
+  const matches = await fetchJson(`${cfg.url}/api/v3/series?${params}`, { headers: headers(cfg) });
+  const series = Array.isArray(matches) ? matches[0] : null;
+  if (!series?.id) return null;
+  const stats = series.statistics ?? {};
+  return {
+    id: series.id,
+    monitored: Boolean(series.monitored),
+    // Whole-series completeness -- good enough for one waypoint on a card;
+    // a per-episode breakdown isn't worth the extra request here.
+    hasFile: Number(stats.episodeFileCount) > 0 && Number(stats.percentOfEpisodes) >= 100,
+  };
+}
+
+/** Sonarr's own self-check: dead indexers, an unreachable download client, low disk space. */
+export async function health(cfg) {
+  const checks = await fetchJson(`${cfg.url}/api/v3/health`, { headers: headers(cfg) });
+  // "notice" (e.g. "update available") isn't a problem -- only surface what
+  // Sonarr itself calls a warning or an error.
+  return (Array.isArray(checks) ? checks : [])
+    .filter((c) => c.type === 'error' || c.type === 'warning')
+    .map((c, i) => ({ id: `sonarr-health-${i}`, source: 'sonarr', severity: c.type, message: c.message, wikiUrl: c.wikiUrl || null }));
 }

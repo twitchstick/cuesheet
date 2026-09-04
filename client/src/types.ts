@@ -132,9 +132,12 @@ export interface MediaDetails extends MediaResult {
 }
 
 export interface MediaRequest {
-  id: number;
+  /** A real request's own Seerr id (number) for MediaRequest; LifecycleItem also synthesizes a "queue-<id>" string id for a queue-only title with no request behind it. Never sent to any API -- display/key use only. */
+  id: number | string;
   mediaType: 'movie' | 'tv';
   tmdbId: number | null;
+  /** TV only -- the bridge to Sonarr, which is TVDB-keyed rather than TMDB-keyed. */
+  tvdbId: number | null;
   title: string;
   year: number | null;
   poster: string | null;
@@ -169,6 +172,31 @@ export interface DownloadItem {
   statusDetail: string | null;
   downloadClient: string | null;
   poster: string | null;
+}
+
+export type LifecycleStage = 'requested' | 'monitored' | 'downloading' | 'importing' | 'available';
+
+/**
+ * One title's position on its own signal trace -- everything MediaRequest
+ * already carries, plus the live downloading/importing refinement matched
+ * against the Radarr/Sonarr queue. progress/timeleft/statusDetail are only
+ * meaningful while stage is 'downloading' or 'importing'.
+ */
+export interface LifecycleItem extends MediaRequest {
+  stage: LifecycleStage;
+  progress: number | null;
+  timeleft: string | null;
+  statusDetail: string | null;
+  /** Best-effort account for why a "monitored" item isn't moving -- Radarr/Sonarr's own reported problem, not a fact about this title specifically. */
+  stallReason: string | null;
+  /** The queue's own raw status while this is actively downloading/importing -- lets the trace show failed/stalled/paused distinctly instead of a flat "downloading." */
+  downloadStatus: DownloadStatus | null;
+  /** Richer queue-sourced subtitle (an episode code, say) when this is actively in the queue. */
+  subtitle: string | null;
+  /** False for a title that's only in the download queue with no matching Seerr request -- Requests hides these, Downloads shows them. */
+  fromRequest: boolean;
+  /** The DownloadItem id ("radarr-123") this trace is currently matched to in the queue, if any -- what /api/details expects. */
+  queueId: string | null;
 }
 
 export type LinkIcon = 'link' | 'server' | 'shield' | 'activity' | 'hard-drive' | 'box' | 'download' | 'terminal' | 'globe';
