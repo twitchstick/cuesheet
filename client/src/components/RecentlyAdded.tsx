@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Poster from './Poster';
 import Section, { Empty, SkeletonRow } from './Section';
-import { timeAgo } from '../lib/format';
+import { sourceLabel, timeAgo } from '../lib/format';
 import type { Errors, RecentItem } from '../types';
 
 interface Props {
@@ -138,6 +138,19 @@ function Card({ item, onSelect }: { item: RecentItem; onSelect?: (item: RecentIt
           className="shadow-poster transition-transform duration-200 group-hover/card:-translate-y-0.5"
         />
         <span className="absolute right-2 top-2 rounded-md bg-night-950/75 px-1.5 py-0.5 text-[11px] font-medium text-fog-300 backdrop-blur">{timeAgo(item.addedAt)}</span>
+        {item.sources.length > 1 && (
+          // Both servers had this one -- noted, not hidden, so it doesn't
+          // read as an unexplained single card for something that's
+          // technically in two libraries.
+          <span
+            className="absolute left-2 top-2 flex gap-1 rounded-full bg-night-950/75 p-1 backdrop-blur"
+            title={item.sources.map((s) => sourceLabel[s]).join(' + ')}
+          >
+            {item.sources.map((s) => (
+              <span key={s} className={`h-1.5 w-1.5 rounded-full ${s === 'plex' ? 'bg-plex' : 'bg-jellyfin'}`} />
+            ))}
+          </span>
+        )}
       </div>
       <figcaption className="mt-2.5 text-left">
         <p className="truncate text-sm font-semibold leading-tight" title={item.title}>

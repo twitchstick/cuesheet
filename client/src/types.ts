@@ -95,6 +95,10 @@ export interface MediaDetail {
 export interface RecentItem {
   id: string;
   source: 'plex' | 'jellyfin';
+  /** Every server this same title was recently added on -- usually just
+   * `[source]`, more than one entry when Plex and Jellyfin both had it and
+   * were merged into this one card rather than shown twice. */
+  sources: ('plex' | 'jellyfin')[];
   type: 'movie' | 'show' | 'season' | 'episode';
   title: string;
   subtitle: string;

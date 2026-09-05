@@ -42,6 +42,36 @@ router.get('/streams', async (_req, res, next) => {
   }
 });
 
+/**
+ * The same title landing in more than one place -- Plex and Jellyfin
+ * pointed at overlapping libraries, most often -- is one card, not two,
+ * with both servers' dots rather than one silently hiding the other.
+ * Matched by title plus whatever actually distinguishes same-titled
+ * things (year for a movie/show; the episode's own subtitle, its SxxExx
+ * code, otherwise) -- not a real cross-service id, since recentlyAdded
+ * carries none, so a title with wildly different metadata between the
+ * two servers won't be caught. Must run after the sort below and before
+ * the limit slice: the kept copy of each duplicate is whichever sorts
+ * first, i.e. already the newest-added.
+ */
+function dedupeRecent(items) {
+  const byKey = new Map();
+  const result = [];
+  for (const item of items) {
+    const disambiguator = item.type === 'movie' || item.type === 'show' ? (item.year ?? '') : item.subtitle;
+    const key = `${item.type}:${item.title.toLowerCase()}:${disambiguator}`;
+    const existing = byKey.get(key);
+    if (existing) {
+      if (!existing.sources.includes(item.source)) existing.sources.push(item.source);
+      continue;
+    }
+    const merged = { ...item, sources: [item.source] };
+    byKey.set(key, merged);
+    result.push(merged);
+  }
+  return result;
+}
+
 router.get('/recent', async (_req, res, next) => {
   try {
     // Fetch more than the row shows so the movies/series filters still fill it.
@@ -52,7 +82,7 @@ router.get('/recent', async (_req, res, next) => {
     const result = await cached('recent', 2 * 60_000, async () => {
       const { items, errors } = await gather(tasks);
       items.sort((a, b) => b.addedAt - a.addedAt);
-      return { items: items.slice(0, limit), errors };
+      return { items: dedupeRecent(items).slice(0, limit), errors };
     });
     res.json(result);
   } catch (err) {

@@ -162,9 +162,22 @@ describe('/api/streams and /api/recent (Plex + Jellyfin)', () => {
 
   test('Plex and Jellyfin recently-added items are merged and sorted newest first', async () => {
     const { body } = await get('/api/recent');
-    assert.deepEqual(body.items.map((i) => i.title), ['Lumen', 'Solstice']);
-    assert.equal(body.items[0].source, 'jellyfin');
-    assert.equal(body.items[1].source, 'plex');
+    assert.deepEqual(body.items.map((i) => i.title), ['Solstice', 'Lumen']);
+    assert.equal(body.items[1].source, 'jellyfin');
+  });
+
+  test('the same title in both libraries is one card, not two -- kept copy is the newer one', async () => {
+    // Jellyfin's own "Solstice" (2024-01-03) and Plex's "Solstice" (2024-01-01,
+    // see fixtures.js) are the same title+year -- deduped into a single card.
+    const { body } = await get('/api/recent');
+    const matches = body.items.filter((i) => i.title === 'Solstice');
+    assert.equal(matches.length, 1, 'one card, not one per server');
+    assert.equal(matches[0].source, 'jellyfin', 'the newer of the two survives');
+    assert.deepEqual(matches[0].sources.sort(), ['jellyfin', 'plex'], 'both servers noted, not just the one that was kept');
+
+    // Lumen only ever came from Jellyfin -- sources is still populated, just with one entry.
+    const lumen = body.items.find((i) => i.title === 'Lumen');
+    assert.deepEqual(lumen.sources, ['jellyfin']);
   });
 });
 

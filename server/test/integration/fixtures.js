@@ -68,6 +68,17 @@ export const jellyfinRoutes = {
           ProductionYear: 2023,
           DateCreated: '2024-01-02T00:00:00Z',
         },
+        // Same title+year as Plex's "Solstice" above, deliberately -- two
+        // libraries pointed at the same content, the /api/recent dedup
+        // test's whole reason to exist. Newer than Plex's own copy, so
+        // this is the one that survives the merge.
+        {
+          Id: 'dup456',
+          Type: 'Movie',
+          Name: 'Solstice',
+          ProductionYear: 2024,
+          DateCreated: '2024-01-03T00:00:00Z',
+        },
       ],
     },
   },
