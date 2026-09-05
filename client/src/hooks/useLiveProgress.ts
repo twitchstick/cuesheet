@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import { timeLeftMs } from '../lib/format';
-import type { LifecycleItem } from '../types';
+import type { DownloadStatus, LifecycleItem } from '../types';
+
+// Radarr/Sonarr's own timeleft estimate is only a live countdown while
+// something is actually moving -- downloading/importing (downloadStatus's
+// default) or 'importing' itself. Everything else that still parks at the
+// 'downloading' trace stage (a paused, queued, stalled, warning, or failed
+// row -- see lifecycle.js) is exactly the opposite of moving, and
+// projecting the old rate forward through one of those would visibly creep
+// a paused or failed download toward 99% until the next real poll corrects it.
+const NOT_ACTUALLY_MOVING: ReadonlySet<DownloadStatus> = new Set(['paused', 'queued', 'stalled', 'warning', 'failed']);
 
 /**
  * item.progress, projected forward in real time using Radarr/Sonarr's own
@@ -11,7 +20,10 @@ import type { LifecycleItem } from '../types';
  * short of 100% -- only a real poll confirming completion gets to say "done."
  */
 export function useLiveProgress(item: LifecycleItem, updatedAt: number | null): number | null {
-  const live = (item.stage === 'downloading' || item.stage === 'importing') && item.progress != null;
+  const live =
+    (item.stage === 'downloading' || item.stage === 'importing') &&
+    item.progress != null &&
+    !(item.downloadStatus && NOT_ACTUALLY_MOVING.has(item.downloadStatus));
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {

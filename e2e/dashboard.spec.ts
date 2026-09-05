@@ -96,6 +96,22 @@ test('a trace card offers deep links straight to Seerr and Radarr, without openi
   await expect(page.getByRole('dialog')).not.toBeVisible();
 });
 
+test('a paused download\'s live progress does not keep advancing between polls', async ({ page }) => {
+  // Redline (fixtures.js) sits at 50% with a 10s "time left" but a paused
+  // status -- chosen so that, without useLiveProgress freezing anything
+  // that isn't actually downloading/importing, the interpolated readout
+  // would visibly jump (50% -> 60%+) within a couple of real seconds.
+  await page.goto('/#/queue');
+  const card = page.locator('article', { hasText: 'Redline' });
+  const readout = card.locator('p', { hasText: '%' });
+  await expect(readout).toBeVisible();
+
+  const before = await readout.textContent();
+  await page.waitForTimeout(2500);
+  const after = await readout.textContent();
+  expect(after).toBe(before);
+});
+
 // Release Calendar isn't covered here: its default window is "this week,
 // relative to whenever the test runs," which the fixed-date fixtures
 // (server/test/integration/fixtures.js) can't line up with deterministically

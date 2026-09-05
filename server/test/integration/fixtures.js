@@ -112,8 +112,13 @@ export const radarrRoutes = {
       records: [
         // Claimed by the movie request above (movieId 10 == findByTmdbId's id).
         { movieId: 10, size: 1000, sizeleft: 400, timeleft: '01:00:00', movie: { title: 'Ember & Ash', year: 2023, titleSlug: 'ember-and-ash-2023' }, quality: { quality: { name: 'Bluray-1080p' } } },
-        // No matching request -- becomes an orphan on /api/lifecycle.
-        { movieId: 77, size: 2000, sizeleft: 2000, timeleft: '02:00:00', movie: { title: 'Redline', year: 2021, titleSlug: 'redline-2021' }, quality: { quality: { name: 'WEBDL-720p' } } },
+        // No matching request -- becomes an orphan on /api/lifecycle. Paused,
+        // not just downloading -- e2e/responsive.spec.ts's live-progress test
+        // needs a large, fast-moving would-be interpolation rate (half done,
+        // 10s "left") so a regression of the paused/stalled/etc. freeze
+        // shows up as an unmistakable jump within a couple of real seconds,
+        // not a rounding-error's worth of drift.
+        { movieId: 77, size: 1_000_000, sizeleft: 500_000, timeleft: '00:00:10', status: 'paused', movie: { title: 'Redline', year: 2021, titleSlug: 'redline-2021' }, quality: { quality: { name: 'WEBDL-720p' } } },
       ],
     },
   },
