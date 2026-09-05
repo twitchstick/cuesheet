@@ -24,7 +24,12 @@ export const plexRoutes = {
             viewOffset: 1_500_000,
             User: { title: 'Riley' },
             Player: { product: 'Plex Web', title: 'Chrome', state: 'playing' },
-            Media: [{ videoResolution: '1080', bitrate: 8000 }],
+            Media: [{ videoResolution: '4k', bitrate: 25000 }],
+            // A long meta line (quality/bandwidth/location) plus the
+            // transcode pill next to it -- realistic enough to actually
+            // stress a narrow phone width, unlike a short "1080p · 8.0 Mbps".
+            Session: { location: 'wan' },
+            TranscodeSession: { videoDecision: 'transcode', audioDecision: 'copy', speed: 1.2 },
           },
         ],
       },

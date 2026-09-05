@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { CalendarDays, DownloadCloud, Home, Plus, Settings, Sparkles } from 'lucide-react';
 import { sourceLabel } from '../lib/format';
 import Logo from './Logo';
@@ -80,11 +81,23 @@ export function ServicesCard({ services }: { services: ServiceHealth[] }) {
 }
 
 export function MobileNav({ view, available, onNavigate }: Pick<Props, 'view' | 'available' | 'onNavigate'>) {
+  const activeRef = useRef<HTMLButtonElement>(null);
+
+  // The strip only shows a few tabs at a time -- without this, opening one
+  // near the end (Settings, say) leaves the active tab scrolled off to the
+  // side, so getting back to Overview means manually swiping the strip back
+  // into place first. `block: 'nearest'` keeps this from also nudging the
+  // page's own vertical scroll, which scrollIntoView does by default.
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [view]);
+
   return (
     <nav className="scroll-row -mx-4 mb-6 flex gap-1 overflow-x-auto px-4 lg:hidden">
       {NAV.filter((n) => available.has(n.view)).map(({ view: v, label, icon: Icon }) => (
         <button
           key={v}
+          ref={view === v ? activeRef : undefined}
           type="button"
           onClick={() => onNavigate(v)}
           aria-current={view === v ? 'page' : undefined}
