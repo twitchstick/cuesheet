@@ -30,6 +30,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # e2e/*.ts has no other type-checking gate: playwright.config.ts's
+      # testDir runs specs through esbuild, which strips types without
+      # checking them, and client/tsconfig.json's include is scoped to
+      # client/src. tsc --noEmit against e2e/tsconfig.json here is the only
+      # thing that would catch a type error under e2e/ before Playwright
+      # hits it at runtime.
+      - run: npm run typecheck:e2e
 
   typecheck-and-build:
     name: Typecheck + client build
