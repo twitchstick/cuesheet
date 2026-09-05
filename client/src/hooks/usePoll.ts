@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface PollState<T> {
   data: T | null;
@@ -12,14 +12,21 @@ interface PollState<T> {
  * Poll a fetcher on an interval. Pauses while the tab is hidden and fires
  * immediately when it becomes visible again, so a wall-mounted screen stays
  * current without hammering the services when nobody is looking.
+ *
+ * `fetcher` itself is a dependency of the effect below, not just stashed in
+ * a ref -- a caller whose fetcher closes over something that changes (the
+ * calendar's week/month range, say) needs that change to fetch right away,
+ * not wait out whatever's left of the previous interval. Every current
+ * caller passes either a stable top-level function (api.streams and
+ * friends) or one memoized with useCallback against its own real
+ * dependencies, so this never fires more often than the fetcher itself
+ * actually changes.
  */
 export function usePoll<T>(fetcher: () => Promise<T>, intervalMs: number, enabled = true): PollState<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(enabled);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
-  const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
   const [tick, setTick] = useState(0);
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
@@ -34,7 +41,7 @@ export function usePoll<T>(fetcher: () => Promise<T>, intervalMs: number, enable
 
     const run = async () => {
       try {
-        const result = await fetcherRef.current();
+        const result = await fetcher();
         if (cancelled) return;
         setData(result);
         setError(null);
@@ -70,7 +77,7 @@ export function usePoll<T>(fetcher: () => Promise<T>, intervalMs: number, enable
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [intervalMs, enabled, tick]);
+  }, [fetcher, intervalMs, enabled, tick]);
 
   return { data, error, loading, updatedAt, refresh };
 }

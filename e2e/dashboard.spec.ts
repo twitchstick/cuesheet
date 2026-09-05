@@ -13,6 +13,31 @@ test('loads the dashboard with data from every configured service', async ({ pag
   await expect(page.getByText('Nova')).toBeVisible();
 });
 
+test('switching the week fetches the new range immediately, not on the next 15-minute poll', async ({ page }, testInfo) => {
+  // App.tsx hides the week calendar below md on the overview page entirely
+  // (the full Calendar tab is its mobile equivalent) -- nothing to click here.
+  test.skip(testInfo.project.name === 'Mobile Chrome', 'the week calendar is desktop-only on the overview page');
+  const calendarRequests: string[] = [];
+  page.on('request', (req) => {
+    if (req.url().includes('/api/calendar')) calendarRequests.push(req.url());
+  });
+  await page.goto('/');
+  await expect(page.getByText('Coming this week')).toBeVisible();
+  await expect.poll(() => calendarRequests.length).toBeGreaterThan(0);
+  const initialStart = new URL(calendarRequests[0]).searchParams.get('start');
+
+  await page.getByLabel('Next week').click();
+  // usePoll's own effect used to only re-run on its interval/enabled deps,
+  // not the fetcher itself -- a new week range would sit unfetched for up
+  // to 15 minutes even though the header above already moved on. Polling
+  // for a prompt new request (well under that interval) is exactly what
+  // that regression would fail.
+  await expect.poll(() => calendarRequests.length, { timeout: 5000 }).toBeGreaterThan(1);
+
+  const latestStart = new URL(calendarRequests[calendarRequests.length - 1]).searchParams.get('start');
+  expect(latestStart).not.toBe(initialStart);
+});
+
 test('Recently requested (overview) opens Requests on click, not a per-item detail panel', async ({ page }) => {
   await page.goto('/');
   const section = page.locator('section', { hasText: 'Recently requested' });
