@@ -14,7 +14,7 @@
     "dev:client": "cd client && npm run dev",
     "build": "cd client && npm run build",
     "start": "node server/index.js",
-    "test": "node --test server/test/*.test.js server/test/integration/*.test.js",
+    "test": "node server/test/run.mjs",
     "test:e2e": "playwright test",
     "lint": "eslint ."
   },
