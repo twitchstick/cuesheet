@@ -157,7 +157,11 @@ export default function App() {
     d.hasSeerr && (
       <Requests
         requests={d.requests.data?.items ?? null}
-        requestsError={d.requests.error}
+        // A Seerr-specific failure no longer fails the whole /api/lifecycle
+        // request (Downloads still needs its Radarr/Sonarr rows), so it
+        // shows up as errors.seerr on an otherwise-successful response now
+        // rather than as the fetch itself throwing.
+        requestsError={d.requests.data?.errors?.seerr ?? d.requests.error}
         seerrUrl={d.config?.seerrUrl ?? ''}
         radarrUrl={d.config?.radarrUrl ?? ''}
         sonarrUrl={d.config?.sonarrUrl ?? ''}

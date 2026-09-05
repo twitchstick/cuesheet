@@ -162,14 +162,22 @@ router.get('/requests', requireSeerr, async (_req, res, next) => {
 router.get('/lifecycle', async (_req, res, next) => {
   try {
     const result = await cached('lifecycle', 30_000, async () => {
-      const requests = config.seerr.enabled ? await cached('requests', 30_000, () => seerr.recentRequests(config.seerr, 12)) : [];
+      // Fetched independently of the queue below, through the same
+      // allSettled-backed gather() the queue already used -- a Seerr outage
+      // must never take Downloads down with it. Without this, a thrown
+      // fetch here used to abort the whole computation before the healthy
+      // Radarr/Sonarr queue was even read.
+      const requestTasks = config.seerr.enabled ? [['seerr', () => cached('requests', 30_000, () => seerr.recentRequests(config.seerr, 12))]] : [];
       const queueTasks = [];
       if (config.radarr.enabled) queueTasks.push(['radarr', () => radarr.queue(config.radarr)]);
       if (config.sonarr.enabled) queueTasks.push(['sonarr', () => sonarr.queue(config.sonarr)]);
-      // A distinct cache key from /api/queue's -- that route caches a
-      // differently-shaped { items, errors, client } under 'queue', and
-      // sharing the key would hand it this route's narrower object instead.
-      const { items: queueItems } = await cached('lifecycle-queue', 12_000, () => gather(queueTasks));
+      const [{ items: requests, errors: requestErrors }, { items: queueItems, errors: queueErrors }] = await Promise.all([
+        gather(requestTasks),
+        // A distinct cache key from /api/queue's -- that route caches a
+        // differently-shaped { items, errors, client } under 'queue', and
+        // sharing the key would hand it this route's narrower object instead.
+        cached('lifecycle-queue', 12_000, () => gather(queueTasks)),
+      ]);
 
       const healthTasks = [];
       if (config.radarr.enabled) healthTasks.push(['radarr', () => radarr.health(config.radarr)]);
@@ -185,7 +193,7 @@ router.get('/lifecycle', async (_req, res, next) => {
         findByTmdbId: (tmdbId) => cached(`lifecycle:radarr:${tmdbId}`, 5 * 60_000, () => radarr.findByTmdbId(config.radarr, tmdbId)),
         findByTvdbId: (tvdbId) => cached(`lifecycle:sonarr:${tvdbId}`, 5 * 60_000, () => sonarr.findByTvdbId(config.sonarr, tvdbId)),
       });
-      return { items };
+      return { items, errors: { ...requestErrors, ...queueErrors } };
     });
     res.json(result);
   } catch (err) {

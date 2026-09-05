@@ -80,7 +80,7 @@ export function useDashboardData(view: View) {
       const err = calendar.data?.errors?.[name] ?? queue.data?.errors?.[name];
       list.push({ name, ok: calendar.data || queue.data ? !err : undefined });
     }
-    if (services.seerr) list.push({ name: 'seerr', ok: requests.data ? true : requests.error ? false : undefined });
+    if (services.seerr) list.push({ name: 'seerr', ok: requests.data ? !requests.data.errors?.seerr : requests.error ? false : undefined });
     if (services.sabnzbd) list.push({ name: 'sabnzbd', ok: queue.data ? !queue.data.errors?.sabnzbd : undefined });
     return list;
   }, [services, streams.data, recent.data, calendar.data, queue.data, requests.data, requests.error]);

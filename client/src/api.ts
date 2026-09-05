@@ -39,7 +39,7 @@ export const api = {
   links: () => get<{ items: QuickLink[] }>('/api/links'),
   saveLinks: (items: QuickLink[]) => get<{ items: QuickLink[] }>('/api/links', json('PUT', { items })),
   requests: () => get<{ items: MediaRequest[] }>('/api/requests'),
-  lifecycle: () => get<{ items: LifecycleItem[] }>('/api/lifecycle'),
+  lifecycle: () => get<{ items: LifecycleItem[]; errors: Errors }>('/api/lifecycle'),
   // Fetched behind a click, not on every poll -- see server/routes/dashboard.js.
   lifecycleHistory: (item: Pick<LifecycleItem, 'mediaType' | 'tmdbId' | 'tvdbId'>) => {
     const params = new URLSearchParams({ mediaType: item.mediaType });
