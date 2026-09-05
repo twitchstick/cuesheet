@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { api, ApiError } from '../api';
 import { eventTimestamp } from '../lib/format';
@@ -27,7 +27,7 @@ interface Row {
 }
 
 interface Props {
-  item: Pick<LifecycleItem, 'id' | 'mediaType' | 'tmdbId' | 'tvdbId' | 'createdAt' | 'requestedBy'>;
+  item: Pick<LifecycleItem, 'id' | 'mediaType' | 'tmdbId' | 'tvdbId' | 'createdAt' | 'requestedBy' | 'stage'>;
   /** Open (and fetched) from the start, for a trace that's already flagged
    * as a problem -- exactly the case where "why" is worth showing without
    * making someone click for it. */
@@ -47,10 +47,28 @@ export default function HistoryStrip({ item, defaultOpen = false }: Props) {
   const [events, setEvents] = useState<HistoryEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // A stage move (grabbed -> downloading, downloading -> available, a fresh
+  // failure...) means Radarr/Sonarr's own history almost certainly grew a
+  // new row -- without this, a card left open/mounted across a poll would
+  // keep showing whatever it fetched the moment it was first opened,
+  // forever, no matter how much actually happened afterward. Compared by
+  // value against a ref, not made an effect dependency directly -- `item`
+  // (and therefore `item.stage`) is a fresh string each poll regardless of
+  // whether it actually changed, and this must only fire on a real move.
+  const lastStage = useRef(item.stage);
+  useEffect(() => {
+    if (lastStage.current === item.stage) return;
+    lastStage.current = item.stage;
+    setEvents(null);
+    setError(null);
+  }, [item.stage]);
+
   // `item` is a new object every poll (the whole /api/lifecycle list is
   // rebuilt each refresh), so this re-runs often once `open` -- harmless,
   // since `events !== null`/`error` turn every re-run after the real one
-  // into a no-op rather than a repeat fetch.
+  // into a no-op rather than a repeat fetch. The stage-change effect above,
+  // and retry() below, are what actually clear those to let a new fetch
+  // through.
   useEffect(() => {
     if (!open || events !== null || error) return;
     let live = true;
@@ -64,11 +82,16 @@ export default function HistoryStrip({ item, defaultOpen = false }: Props) {
   }, [open, item, events, error]);
 
   // The full trace card is itself clickable (opens the detail panel) when
-  // DownloadQueue renders it -- this toggle sits inside that, so its click
-  // must never bubble up and open the panel instead of just expanding.
+  // DownloadQueue renders it -- this toggle (and retry, below) sit inside
+  // that, so neither click must ever bubble up and open the panel instead.
   const toggle = (e: MouseEvent) => {
     e.stopPropagation();
     setOpen((v) => !v);
+  };
+
+  const retry = (e: MouseEvent) => {
+    e.stopPropagation();
+    setError(null);
   };
 
   // This only renders for an item with a real request behind it (see
@@ -100,7 +123,12 @@ export default function HistoryStrip({ item, defaultOpen = false }: Props) {
       {open && (
         <div className="mt-3">
           {error ? (
-            <p className="text-xs text-fog-500">{error}</p>
+            <p className="flex items-center gap-2 text-xs text-fog-500">
+              <span>{error}</span>
+              <button type="button" onClick={retry} className="shrink-0 text-fog-300 underline underline-offset-2 hover:text-fog-100">
+                Retry
+              </button>
+            </p>
           ) : rows === null ? (
             <div className="flex flex-col gap-2">
               {[0, 1].map((i) => (
