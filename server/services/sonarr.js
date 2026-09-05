@@ -143,7 +143,9 @@ export async function findByTvdbId(cfg, tvdbId) {
  */
 export async function history(cfg, seriesId) {
   if (!Number.isInteger(seriesId)) return [];
-  const params = new URLSearchParams({ seriesId: String(seriesId) });
+  // includeEpisode -- same param queue()/calendar() already send -- so each
+  // record carries its own season/episode for the client's attempt grouping.
+  const params = new URLSearchParams({ seriesId: String(seriesId), includeEpisode: 'true' });
   const records = await fetchJson(`${cfg.url}/api/v3/history/series?${params}`, { headers: headers(cfg) });
   return (Array.isArray(records) ? records : [])
     .map((r) => historyEvent(r, 'sonarr'))

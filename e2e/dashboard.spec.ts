@@ -102,6 +102,47 @@ test('a trace card\'s History expands in place without opening the detail panel'
   await expect(page.getByRole('dialog')).toBeVisible();
 });
 
+test('History groups events sharing a downloadId into numbered attempts', async ({ page }) => {
+  // fixtures.js gives Ember & Ash two distinct downloadIds: an old 720p
+  // grab that failed, and the current 1080p grab (still downloading, no
+  // failed/imported event yet) -- exactly the "attempt 1 failed, attempt 2
+  // is still going" case this grouping exists for.
+  await page.goto('/#/queue');
+  const card = page.locator('article', { hasText: 'Ember & Ash' });
+  await card.getByRole('button', { name: /history/i }).click();
+  const history = card.locator('ul');
+
+  // Attempt 1's own two events (the old release's grab and its failure) --
+  // proves the grouping actually joined them by downloadId, not just that
+  // an "Attempt 1" label exists somewhere.
+  const attempt1 = history.locator('li', { hasText: 'Attempt 1' });
+  await expect(attempt1.getByText('Ember.and.Ash.2023.720p.WEB-DL-OLDGRP')).toBeVisible();
+  await expect(attempt1.getByText('Sample')).toBeVisible(); // the failure's own detail
+
+  // Attempt 2 has nothing after its grab yet (still downloading in the
+  // fixture) -- "In progress" is unambiguous here since no per-event label
+  // ever says that, unlike "Failed"/"Grabbed" which attempt 1's own rows
+  // already use.
+  const attempt2 = history.locator('li', { hasText: 'Attempt 2' });
+  await expect(attempt2.getByText('In progress')).toBeVisible();
+  await expect(attempt2.getByText('Ember.and.Ash.2023.1080p.BluRay-GROUP')).toBeVisible();
+
+  // The request's own start isn't part of either download's lifecycle --
+  // it stays a standalone row outside both attempt groups.
+  await expect(history.getByText('Requested', { exact: true })).toBeVisible();
+  await expect(history.getByText('by Riley')).toBeVisible();
+});
+
+test('History shows the episode on each attempt group for a TV request', async ({ page }) => {
+  await page.goto('/#/queue');
+  const card = page.locator('article', { hasText: 'Second Sun' });
+  await card.getByRole('button', { name: /history/i }).click();
+  const history = card.locator('ul');
+
+  await expect(history.getByText('Attempt 1 · S01E04')).toBeVisible();
+  await expect(history.getByText('Attempt 2 · S01E04')).toBeVisible();
+});
+
 test('a trace card offers deep links straight to Seerr and Radarr, without opening the detail panel', async ({ page, context }) => {
   await page.goto('/#/queue');
   const card = page.locator('article', { hasText: 'Ember & Ash' });

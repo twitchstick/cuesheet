@@ -200,6 +200,8 @@ describe('historyEvent', () => {
       release: 'Ember.and.Ash.2023.1080p-GROUP',
       indexer: 'Indexer1',
       detail: null,
+      downloadId: null,
+      episodeCode: null,
     });
   });
 
@@ -230,7 +232,20 @@ describe('historyEvent', () => {
       release: null,
       indexer: null,
       detail: null,
+      downloadId: null,
+      episodeCode: null,
     });
+  });
+
+  test('carries the download client\'s own job id -- the join key the client groups history "attempts" by', () => {
+    assert.equal(historyEvent({ id: 12, eventType: 'grabbed', downloadId: 'abc123' }, 'radarr').downloadId, 'abc123');
+    assert.equal(historyEvent({ id: 13, eventType: 'grabbed' }, 'radarr').downloadId, null, 'null, not undefined, when Radarr/Sonarr omits it');
+  });
+
+  test('episodeCode comes from the embedded episode (TV only, when the caller asked Sonarr to include it)', () => {
+    const e = historyEvent({ id: 14, eventType: 'grabbed', episode: { seasonNumber: 1, episodeNumber: 4 } }, 'sonarr');
+    assert.equal(e.episodeCode, 'S01E04');
+    assert.equal(historyEvent({ id: 15, eventType: 'grabbed' }, 'radarr').episodeCode, null, 'a movie record has no episode to read one from');
   });
 });
 

@@ -131,12 +131,13 @@ export const radarrRoutes = {
   // failed, then a re-grab that's the one actually in the queue fixture
   // above (still downloading, not imported yet -- consistent with it).
   // Radarr/Sonarr's own history isn't paginated per-title, so this is the
-  // whole thing, oldest first.
+  // whole thing, oldest first. Two distinct downloadIds -- one per attempt
+  // -- is what the client's history grouping is keyed on.
   'GET /api/v3/history/movie': {
     body: [
-      { id: 1, eventType: 'grabbed', date: '2024-01-01T10:00:00Z', sourceTitle: 'Ember.and.Ash.2023.720p.WEB-DL-OLDGRP', data: { indexer: 'NewsHost' } },
-      { id: 2, eventType: 'downloadFailed', date: '2024-01-01T11:30:00Z', sourceTitle: 'Ember.and.Ash.2023.720p.WEB-DL-OLDGRP', data: { message: 'Sample' } },
-      { id: 3, eventType: 'grabbed', date: '2024-01-01T12:00:00Z', sourceTitle: 'Ember.and.Ash.2023.1080p.BluRay-GROUP', data: { indexer: 'Indexer1' } },
+      { id: 1, eventType: 'grabbed', date: '2024-01-01T10:00:00Z', sourceTitle: 'Ember.and.Ash.2023.720p.WEB-DL-OLDGRP', downloadId: 'dl-720p-old', data: { indexer: 'NewsHost' } },
+      { id: 2, eventType: 'downloadFailed', date: '2024-01-01T11:30:00Z', sourceTitle: 'Ember.and.Ash.2023.720p.WEB-DL-OLDGRP', downloadId: 'dl-720p-old', data: { message: 'Sample' } },
+      { id: 3, eventType: 'grabbed', date: '2024-01-01T12:00:00Z', sourceTitle: 'Ember.and.Ash.2023.1080p.BluRay-GROUP', downloadId: 'dl-1080p-new', data: { indexer: 'Indexer1' } },
     ],
   },
 };
@@ -177,11 +178,14 @@ export const sonarrRoutes = {
       },
     ],
   },
+  // Same shape as Radarr's above -- a failed 720p attempt, then a re-grab --
+  // plus the episode embed (includeEpisode) the client needs to show
+  // "S01E04" on each attempt group.
   'GET /api/v3/history/series': {
     body: [
-      { id: 1, eventType: 'grabbed', date: '2024-01-02T08:00:00Z', sourceTitle: 'Second.Sun.S01E04.720p-GROUP' },
-      { id: 2, eventType: 'downloadFailed', date: '2024-01-02T09:15:00Z', sourceTitle: 'Second.Sun.S01E04.720p-GROUP', data: { reason: 'No files found are eligible for import' } },
-      { id: 3, eventType: 'grabbed', date: '2024-01-02T10:00:00Z', sourceTitle: 'Second.Sun.S01E04.1080p-GROUP2', data: { indexer: 'Indexer2' } },
+      { id: 1, eventType: 'grabbed', date: '2024-01-02T08:00:00Z', sourceTitle: 'Second.Sun.S01E04.720p-GROUP', downloadId: 'dl-720p-old', episode: { seasonNumber: 1, episodeNumber: 4 } },
+      { id: 2, eventType: 'downloadFailed', date: '2024-01-02T09:15:00Z', sourceTitle: 'Second.Sun.S01E04.720p-GROUP', downloadId: 'dl-720p-old', data: { reason: 'No files found are eligible for import' } },
+      { id: 3, eventType: 'grabbed', date: '2024-01-02T10:00:00Z', sourceTitle: 'Second.Sun.S01E04.1080p-GROUP2', downloadId: 'dl-1080p-new', episode: { seasonNumber: 1, episodeNumber: 4 }, data: { indexer: 'Indexer2' } },
     ],
   },
 };

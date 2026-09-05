@@ -117,6 +117,7 @@ export function historyEvent(record, source) {
   const type = HISTORY_TYPE.find(([re]) => re.test(String(record.eventType ?? '')))?.[1];
   if (!type) return null;
   const data = record.data ?? {};
+  const ep = record.episode;
   return {
     id: `${source}-history-${record.id}`,
     type,
@@ -124,5 +125,14 @@ export function historyEvent(record, source) {
     release: record.sourceTitle || null,
     indexer: data.indexer || null,
     detail: data.message || data.reason || null,
+    // Radarr/Sonarr's own download-client job id -- identical across every
+    // event belonging to the same grab (its eventual failure, its eventual
+    // import), which is how the client groups history into "attempts"
+    // without guessing from timing or title. Not every event type carries
+    // one -- a manual delete/ignore isn't part of a download's own lifecycle.
+    downloadId: record.downloadId || null,
+    // TV only -- Sonarr embeds the episode when history() asks for it
+    // (includeEpisode); a movie record has nothing here.
+    episodeCode: ep ? episodeCode(ep.seasonNumber, ep.episodeNumber) : null,
   };
 }

@@ -229,6 +229,13 @@ export interface HistoryEvent {
   release: string | null;
   indexer: string | null;
   detail: string | null;
+  /** Radarr/Sonarr's own download-client job id -- identical across every
+   * event belonging to the same grab. Null for anything not part of a
+   * download's own lifecycle (a manual delete/ignore). Groups a title's
+   * history into "attempts" without guessing from timing or title. */
+  downloadId: string | null;
+  /** TV only -- "S03E04", when Sonarr's history embedded the episode. */
+  episodeCode: string | null;
 }
 
 export type LinkIcon = 'link' | 'server' | 'shield' | 'activity' | 'hard-drive' | 'box' | 'download' | 'terminal' | 'globe';
