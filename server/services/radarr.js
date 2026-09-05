@@ -93,6 +93,10 @@ export async function queue(cfg) {
       // Radarr's web UI routes by this, not the numeric id above -- see
       // findByTmdbId's own comment.
       titleSlug: r.movie?.titleSlug ?? null,
+      // The release being grabbed, e.g. "Bluray-1080p" -- same shape as the
+      // movie-file quality read in details() above, just off the queue's
+      // own record instead of the file already on disk.
+      quality: r.quality?.quality?.name ?? null,
       title: r.movie?.title ?? r.title ?? 'Unknown movie',
       subtitle: r.movie?.year ? String(r.movie.year) : '',
       sizeBytes: Number(r.size) || 0,
@@ -122,6 +126,10 @@ export function imageRequest(cfg, ref) {
  * but Radarr's own web UI routes movie pages by titleSlug instead --
  * `{radarrUrl}/movie/{id}` looks plausible but 404s ("that movie cannot be
  * found") since Radarr never treats the numeric id as a valid path there.
+ *
+ * The list endpoint embeds `movieFile` just like the single-movie one does,
+ * so a movie already on disk carries its quality here too -- worth reading
+ * now rather than a second request later just for that.
  */
 export async function findByTmdbId(cfg, tmdbId) {
   if (!Number.isInteger(tmdbId)) return null;
@@ -129,7 +137,13 @@ export async function findByTmdbId(cfg, tmdbId) {
   const matches = await fetchJson(`${cfg.url}/api/v3/movie?${params}`, { headers: headers(cfg) });
   const movie = Array.isArray(matches) ? matches[0] : null;
   if (!movie?.id) return null;
-  return { id: movie.id, titleSlug: movie.titleSlug ?? null, monitored: Boolean(movie.monitored), hasFile: Boolean(movie.hasFile) };
+  return {
+    id: movie.id,
+    titleSlug: movie.titleSlug ?? null,
+    monitored: Boolean(movie.monitored),
+    hasFile: Boolean(movie.hasFile),
+    quality: movie.movieFile?.quality?.quality?.name ?? null,
+  };
 }
 
 /**

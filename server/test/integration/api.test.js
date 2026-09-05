@@ -203,6 +203,8 @@ describe('/api/lifecycle (Seerr requests correlated with Radarr/Sonarr queues)',
     assert.equal(movie.externalId, 10);
     // The web-UI id -- what the client's deep link actually needs.
     assert.equal(movie.titleSlug, 'ember-and-ash-2023');
+    // The release currently being grabbed, straight off the queue row.
+    assert.equal(movie.quality, 'Bluray-1080p');
   });
 
   test('a tv request is matched via tvdbId, not tmdbId, to its Sonarr queue row', async () => {
@@ -213,6 +215,7 @@ describe('/api/lifecycle (Seerr requests correlated with Radarr/Sonarr queues)',
     assert.equal(tv.queueId, 'sonarr-200');
     assert.equal(tv.externalId, 55);
     assert.equal(tv.titleSlug, 'second-sun');
+    assert.equal(tv.quality, 'WEBDL-1080p');
   });
 
   test('an unclaimed Radarr queue row surfaces as an orphan, not dropped', async () => {
@@ -224,6 +227,7 @@ describe('/api/lifecycle (Seerr requests correlated with Radarr/Sonarr queues)',
     // No Seerr request to resolve either from -- straight off its own queue row.
     assert.equal(orphan.externalId, 77);
     assert.equal(orphan.titleSlug, 'redline-2021');
+    assert.equal(orphan.quality, 'WEBDL-720p');
   });
 });
 

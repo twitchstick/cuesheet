@@ -111,9 +111,9 @@ export const radarrRoutes = {
     body: {
       records: [
         // Claimed by the movie request above (movieId 10 == findByTmdbId's id).
-        { movieId: 10, size: 1000, sizeleft: 400, timeleft: '01:00:00', movie: { title: 'Ember & Ash', year: 2023, titleSlug: 'ember-and-ash-2023' } },
+        { movieId: 10, size: 1000, sizeleft: 400, timeleft: '01:00:00', movie: { title: 'Ember & Ash', year: 2023, titleSlug: 'ember-and-ash-2023' }, quality: { quality: { name: 'Bluray-1080p' } } },
         // No matching request -- becomes an orphan on /api/lifecycle.
-        { movieId: 77, size: 2000, sizeleft: 2000, timeleft: '02:00:00', movie: { title: 'Redline', year: 2021, titleSlug: 'redline-2021' } },
+        { movieId: 77, size: 2000, sizeleft: 2000, timeleft: '02:00:00', movie: { title: 'Redline', year: 2021, titleSlug: 'redline-2021' }, quality: { quality: { name: 'WEBDL-720p' } } },
       ],
     },
   },
@@ -151,6 +151,7 @@ export const sonarrRoutes = {
           timeleft: '00:30:00',
           series: { title: 'Second Sun', titleSlug: 'second-sun' },
           episode: { seasonNumber: 1, episodeNumber: 4, title: 'Ashfall' },
+          quality: { quality: { name: 'WEBDL-1080p' } },
         },
       ],
     },

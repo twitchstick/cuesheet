@@ -76,6 +76,7 @@ describe('queue', () => {
             status: 'downloading',
             trackedDownloadStatus: 'ok',
             downloadClient: 'SABnzbd',
+            quality: { quality: { name: 'Bluray-1080p' } },
           },
         ],
       }),
@@ -87,6 +88,13 @@ describe('queue', () => {
     // An orphan queue row's only source for its own deep link.
     assert.equal(row.movieId, 1);
     assert.equal(row.titleSlug, 'blue-current-2026');
+    assert.equal(row.quality, 'Bluray-1080p');
+  });
+
+  test('quality is null, not undefined, when the queue record has none', async () => {
+    mockFetch(jsonRes({ records: [{ movieId: 1, movie: { title: 'Blue Current' }, size: 100, sizeleft: 50 }] }));
+    const [row] = await radarr.queue(cfg);
+    assert.equal(row.quality, null);
   });
 
   test('drops a record with no movieId rather than showing an unidentifiable row', async () => {
@@ -120,12 +128,17 @@ describe('findByTmdbId', () => {
 
   test('maps the matched movie to id/titleSlug/monitored/hasFile', async () => {
     mockFetch(jsonRes([{ id: 1, tmdbId: 2001, titleSlug: 'ember-and-ash-2023', monitored: true, hasFile: false }]));
-    assert.deepEqual(await radarr.findByTmdbId(cfg, 2001), { id: 1, titleSlug: 'ember-and-ash-2023', monitored: true, hasFile: false });
+    assert.deepEqual(await radarr.findByTmdbId(cfg, 2001), { id: 1, titleSlug: 'ember-and-ash-2023', monitored: true, hasFile: false, quality: null });
   });
 
   test('titleSlug is null, not undefined, when Radarr somehow omits it', async () => {
     mockFetch(jsonRes([{ id: 1, tmdbId: 2001, monitored: true, hasFile: false }]));
     assert.equal((await radarr.findByTmdbId(cfg, 2001)).titleSlug, null);
+  });
+
+  test('the list endpoint embeds movieFile too, so a file already on disk carries its quality here', async () => {
+    mockFetch(jsonRes([{ id: 1, tmdbId: 2001, titleSlug: 'x', monitored: true, hasFile: true, movieFile: { quality: { quality: { name: 'Bluray-1080p' } } } }]));
+    assert.equal((await radarr.findByTmdbId(cfg, 2001)).quality, 'Bluray-1080p');
   });
 });
 

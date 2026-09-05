@@ -87,6 +87,8 @@ export async function queue(cfg) {
       // Sonarr's web UI routes by this, not the numeric id above -- see
       // findByTvdbId's own comment.
       titleSlug: r.series?.titleSlug ?? null,
+      // The release being grabbed for this episode, e.g. "WEBDL-1080p".
+      quality: r.quality?.quality?.name ?? null,
       title: r.series?.title ?? 'Unknown series',
       subtitle: r.episode ? `${episodeCode(r.episode.seasonNumber, r.episode.episodeNumber)}${r.episode.title ? ` · ${r.episode.title}` : ''}` : '',
       sizeBytes: Number(r.size) || 0,

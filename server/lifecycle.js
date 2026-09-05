@@ -44,8 +44,14 @@ export async function lifecycleFor(r, queueItems, health, deps) {
   // detail pages by this, not the numeric id above. Only this, not
   // externalId, belongs in a link to that app.
   let titleSlug = null;
+  // The release's own quality (e.g. "Bluray-1080p") -- from whichever
+  // Radarr/Sonarr record actually carries one: the queue row while it's
+  // downloading, or (movies only) the file already on disk. Stays null for
+  // a request Seerr already reports as available, same as externalId/
+  // titleSlug above -- the lookup that would find it never runs there.
+  let quality = null;
 
-  const base = { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId, titleSlug };
+  const base = { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId, titleSlug, quality };
   if (stage === 'available') return base;
 
   try {
@@ -68,8 +74,11 @@ export async function lifecycleFor(r, queueItems, health, deps) {
           downloadStatus = row.status;
           subtitle = row.subtitle || null;
           queueId = row.id;
-        } else if (found.hasFile) stage = 'available';
-        else if (found.monitored && LIFECYCLE_STAGE[stage] < LIFECYCLE_STAGE.monitored) stage = 'monitored';
+          quality = row.quality ?? null;
+        } else if (found.hasFile) {
+          stage = 'available';
+          quality = found.quality ?? null;
+        } else if (found.monitored && LIFECYCLE_STAGE[stage] < LIFECYCLE_STAGE.monitored) stage = 'monitored';
       }
     } else if (r.mediaType === 'tv' && Number.isInteger(r.tvdbId) && deps.sonarrEnabled) {
       const found = await deps.findByTvdbId(r.tvdbId);
@@ -85,6 +94,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
           downloadStatus = row.status;
           subtitle = row.subtitle || null;
           queueId = row.id;
+          quality = row.quality ?? null;
         } else if (found.hasFile) stage = 'available';
         else if (found.monitored && LIFECYCLE_STAGE[stage] < LIFECYCLE_STAGE.monitored) stage = 'monitored';
       }
@@ -105,7 +115,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
     if (issue) stallReason = issue.message;
   }
 
-  return { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId, titleSlug };
+  return { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId, titleSlug, quality };
 }
 
 /**
@@ -144,6 +154,7 @@ export function orphanLifecycleItem(row) {
     // request to resolve either from otherwise.
     externalId: row.movieId ?? row.seriesId ?? null,
     titleSlug: row.titleSlug ?? null,
+    quality: row.quality ?? null,
   };
 }
 

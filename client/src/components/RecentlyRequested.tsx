@@ -81,6 +81,12 @@ function Card({ item, onOpen }: { item: LifecycleItem; onOpen: () => void }) {
           {item.title}
         </p>
         <p className="truncate text-xs text-fog-500">{meta(item)}</p>
+        {/* Who asked, and in what quality once that's known -- a nice-to-know
+            underneath the stage that's actually driving the card. */}
+        <p className="mt-0.5 truncate text-[11px] text-fog-700" title={item.quality ? `${item.requestedBy} · ${item.quality}` : item.requestedBy}>
+          {item.requestedBy}
+          {item.quality && <span className="text-fog-500"> · {item.quality}</span>}
+        </p>
       </figcaption>
     </button>
   );

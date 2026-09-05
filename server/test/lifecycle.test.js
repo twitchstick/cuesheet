@@ -60,11 +60,12 @@ describe('lifecycleFor', () => {
 
   test('a live queue match takes priority over hasFile/monitored, and carries progress through', async () => {
     const deps = { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 1, monitored: true, hasFile: false }) };
-    const queueItems = [{ id: 'radarr-1', status: 'downloading', progress: 0.42, timeleft: '00:20:00', statusDetail: null, subtitle: null }];
+    const queueItems = [{ id: 'radarr-1', status: 'downloading', progress: 0.42, timeleft: '00:20:00', statusDetail: null, subtitle: null, quality: 'Bluray-1080p' }];
     const item = await lifecycleFor(request(), queueItems, noHealth, deps);
     assert.equal(item.stage, 'downloading');
     assert.equal(item.progress, 0.42);
     assert.equal(item.queueId, 'radarr-1');
+    assert.equal(item.quality, 'Bluray-1080p');
   });
 
   test('an importing queue row maps to the importing stage specifically', async () => {
@@ -164,6 +165,24 @@ describe('lifecycleFor', () => {
     assert.equal(item.externalId, null);
     assert.equal(item.titleSlug, null);
   });
+
+  test('quality comes from the movie file already on disk when hasFile jumps straight to available, no queue row involved', async () => {
+    const deps = { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 1, monitored: true, hasFile: true, quality: 'Bluray-1080p' }) };
+    const item = await lifecycleFor(request(), [], noHealth, deps);
+    assert.equal(item.stage, 'available');
+    assert.equal(item.quality, 'Bluray-1080p');
+  });
+
+  test('quality stays null when nothing has surfaced one yet (still just monitored)', async () => {
+    const deps = { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 1, monitored: true, hasFile: false }) };
+    const item = await lifecycleFor(request(), [], noHealth, deps);
+    assert.equal(item.quality, null);
+  });
+
+  test('quality stays null for an already-available request -- the lookup never runs, so there is nothing to resolve it from', async () => {
+    const item = await lifecycleFor(request({ mediaStatus: 'available' }), [], noHealth, noDeps);
+    assert.equal(item.quality, null);
+  });
 });
 
 describe('orphanLifecycleItem', () => {
@@ -191,6 +210,11 @@ describe('orphanLifecycleItem', () => {
   test('titleSlug also comes straight off the queue row -- an orphan\'s only source for either', () => {
     assert.equal(orphanLifecycleItem({ id: 'radarr-77', movieId: 77, titleSlug: 'redline-2021' }).titleSlug, 'redline-2021');
     assert.equal(orphanLifecycleItem({ id: 'radarr-1' }).titleSlug, null);
+  });
+
+  test('quality comes straight off the queue row too, null when the row has none', () => {
+    assert.equal(orphanLifecycleItem({ id: 'radarr-77', movieId: 77, quality: 'WEBDL-720p' }).quality, 'WEBDL-720p');
+    assert.equal(orphanLifecycleItem({ id: 'radarr-1' }).quality, null);
   });
 
   test('mediaType comes from the queue row\'s type, episode -> tv', () => {

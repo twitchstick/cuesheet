@@ -212,6 +212,11 @@ export interface LifecycleItem extends MediaRequest {
   /** Radarr/Sonarr's own web-UI id for the same title -- their detail
    * pages route by this, not `externalId`. This is what a deep link needs. */
   titleSlug: string | null;
+  /** The release's own quality, e.g. "Bluray-1080p" -- known while it's
+   * actively downloading, or (movies only) once the file is already on
+   * disk. Null otherwise, including for anything Seerr already reports as
+   * available (that shortcut skips the Radarr/Sonarr lookup entirely). */
+  quality: string | null;
 }
 
 /** One grab/import/failure off a title's own Radarr/Sonarr history -- the
