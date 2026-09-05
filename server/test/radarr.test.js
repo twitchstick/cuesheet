@@ -67,7 +67,16 @@ describe('queue', () => {
     mockFetch(
       jsonRes({
         records: [
-          { movieId: 1, movie: { title: 'Blue Current', year: 2026 }, size: 4_200_000_000, sizeleft: 3_100_000_000, timeleft: '00:22:00', status: 'downloading', trackedDownloadStatus: 'ok', downloadClient: 'SABnzbd' },
+          {
+            movieId: 1,
+            movie: { title: 'Blue Current', year: 2026, titleSlug: 'blue-current-2026' },
+            size: 4_200_000_000,
+            sizeleft: 3_100_000_000,
+            timeleft: '00:22:00',
+            status: 'downloading',
+            trackedDownloadStatus: 'ok',
+            downloadClient: 'SABnzbd',
+          },
         ],
       }),
     );
@@ -75,6 +84,9 @@ describe('queue', () => {
     assert.equal(row.id, 'radarr-1');
     assert.equal(row.status, 'downloading');
     assert.ok(Math.abs(row.progress - 0.2619) < 0.001);
+    // An orphan queue row's only source for its own deep link.
+    assert.equal(row.movieId, 1);
+    assert.equal(row.titleSlug, 'blue-current-2026');
   });
 
   test('drops a record with no movieId rather than showing an unidentifiable row', async () => {
@@ -106,9 +118,14 @@ describe('findByTmdbId', () => {
     assert.equal(await radarr.findByTmdbId(cfg, 2001), null);
   });
 
-  test('maps the matched movie to id/monitored/hasFile', async () => {
+  test('maps the matched movie to id/titleSlug/monitored/hasFile', async () => {
+    mockFetch(jsonRes([{ id: 1, tmdbId: 2001, titleSlug: 'ember-and-ash-2023', monitored: true, hasFile: false }]));
+    assert.deepEqual(await radarr.findByTmdbId(cfg, 2001), { id: 1, titleSlug: 'ember-and-ash-2023', monitored: true, hasFile: false });
+  });
+
+  test('titleSlug is null, not undefined, when Radarr somehow omits it', async () => {
     mockFetch(jsonRes([{ id: 1, tmdbId: 2001, monitored: true, hasFile: false }]));
-    assert.deepEqual(await radarr.findByTmdbId(cfg, 2001), { id: 1, monitored: true, hasFile: false });
+    assert.equal((await radarr.findByTmdbId(cfg, 2001)).titleSlug, null);
   });
 });
 

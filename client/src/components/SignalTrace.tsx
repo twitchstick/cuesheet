@@ -11,8 +11,11 @@ export type ServiceLinks = Pick<AppConfig, 'seerrUrl' | 'radarrUrl' | 'sonarrUrl
  * Straight to the title in the app actually handling it -- not proxied
  * through Cuesheet, so this only ever needs the base URL and an id already
  * in hand. Seerr needs a real request behind the item (an orphan queue row
- * has none); Radarr/Sonarr needs `externalId`, which an orphan gets for
- * free off its own queue row and a request only once matched.
+ * has none); Radarr/Sonarr needs `titleSlug`, which an orphan gets for free
+ * off its own queue row and a request only once matched. `externalId` (the
+ * numeric id) deliberately isn't used here -- that's the REST API's id, not
+ * the web UI's, and a link built from it 404s ("that movie cannot be
+ * found") since Radarr/Sonarr route their own detail pages by slug.
  */
 // Each link tinted to the app it opens, the same way a stream is tinted to
 // Plex or Jellyfin -- text-{radarr,sonarr,seerr} in tailwind.config.js.
@@ -23,9 +26,9 @@ function deepLinks(item: LifecycleItem, urls: ServiceLinks): { label: string; ur
   if (item.fromRequest && item.tmdbId && urls.seerrUrl) {
     links.push({ label: 'Seerr', url: `${urls.seerrUrl}/${item.mediaType}/${item.tmdbId}` });
   }
-  if (item.externalId != null) {
-    if (item.mediaType === 'movie' && urls.radarrUrl) links.push({ label: 'Radarr', url: `${urls.radarrUrl}/movie/${item.externalId}` });
-    if (item.mediaType === 'tv' && urls.sonarrUrl) links.push({ label: 'Sonarr', url: `${urls.sonarrUrl}/series/${item.externalId}` });
+  if (item.titleSlug) {
+    if (item.mediaType === 'movie' && urls.radarrUrl) links.push({ label: 'Radarr', url: `${urls.radarrUrl}/movie/${encodeURIComponent(item.titleSlug)}` });
+    if (item.mediaType === 'tv' && urls.sonarrUrl) links.push({ label: 'Sonarr', url: `${urls.sonarrUrl}/series/${encodeURIComponent(item.titleSlug)}` });
   }
   return links;
 }

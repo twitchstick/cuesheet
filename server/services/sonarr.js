@@ -84,6 +84,9 @@ export async function queue(cfg) {
       // Not part of the public DownloadItem shape -- kept only so the
       // lifecycle route can match a queue row back to its series.
       seriesId: r.seriesId ?? null,
+      // Sonarr's web UI routes by this, not the numeric id above -- see
+      // findByTvdbId's own comment.
+      titleSlug: r.series?.titleSlug ?? null,
       title: r.series?.title ?? 'Unknown series',
       subtitle: r.episode ? `${episodeCode(r.episode.seasonNumber, r.episode.episodeNumber)}${r.episode.title ? ` · ${r.episode.title}` : ''}` : '',
       sizeBytes: Number(r.size) || 0,
@@ -106,6 +109,12 @@ export function imageRequest(cfg, ref) {
  * Find the Sonarr series behind a TVDB id -- Sonarr's world is TVDB-keyed,
  * not TMDB, so a Seerr TV request needs this bridge before it can be
  * matched against Sonarr's own internal id (what the queue is keyed on).
+ *
+ * `titleSlug` is a second, separate identifier carried alongside `id`: the
+ * REST API is keyed on the numeric id, but Sonarr's own web UI routes
+ * series pages by titleSlug instead -- `{sonarrUrl}/series/{id}` looks
+ * plausible but 404s since Sonarr never treats the numeric id as a valid
+ * path there.
  */
 export async function findByTvdbId(cfg, tvdbId) {
   if (!Number.isInteger(tvdbId)) return null;
@@ -116,6 +125,7 @@ export async function findByTvdbId(cfg, tvdbId) {
   const stats = series.statistics ?? {};
   return {
     id: series.id,
+    titleSlug: series.titleSlug ?? null,
     monitored: Boolean(series.monitored),
     // Whole-series completeness -- good enough for one waypoint on a card;
     // a per-episode breakdown isn't worth the extra request here.

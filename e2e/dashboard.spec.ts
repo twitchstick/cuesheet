@@ -83,10 +83,11 @@ test('a trace card offers deep links straight to Seerr and Radarr, without openi
 
   const seerrLink = card.getByRole('link', { name: /Open in Seerr/i });
   const radarrLink = card.getByRole('link', { name: /Open in Radarr/i });
-  // tmdbId 10 (the request) and Radarr's own internal movie id 10 (see
-  // fixtures.js) happen to coincide here -- both real, from different fields.
+  // Seerr's link is built from tmdbId (the request's own field); Radarr's
+  // is built from titleSlug, its web UI's own id -- not the numeric
+  // Radarr movie id (10, see fixtures.js), which 404s there.
   await expect(seerrLink).toHaveAttribute('href', /\/movie\/10$/);
-  await expect(radarrLink).toHaveAttribute('href', /\/movie\/10$/);
+  await expect(radarrLink).toHaveAttribute('href', /\/movie\/ember-and-ash-2023$/);
 
   const [popup] = await Promise.all([context.waitForEvent('page'), radarrLink.click()]);
   await popup.close();

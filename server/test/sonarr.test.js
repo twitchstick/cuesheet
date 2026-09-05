@@ -83,7 +83,15 @@ describe('queue', () => {
     mockFetch(
       jsonRes({
         records: [
-          { episodeId: 300, seriesId: 21, series: { title: 'Polaris' }, episode: { seasonNumber: 3, episodeNumber: 3, title: 'Undertow' }, size: 900_000_000, sizeleft: 120_000_000, status: 'downloading' },
+          {
+            episodeId: 300,
+            seriesId: 21,
+            series: { title: 'Polaris', titleSlug: 'polaris' },
+            episode: { seasonNumber: 3, episodeNumber: 3, title: 'Undertow' },
+            size: 900_000_000,
+            sizeleft: 120_000_000,
+            status: 'downloading',
+          },
         ],
       }),
     );
@@ -91,6 +99,8 @@ describe('queue', () => {
     assert.equal(row.id, 'sonarr-300');
     assert.equal(row.seriesId, 21);
     assert.equal(row.subtitle, 'S03E03 · Undertow');
+    // An orphan queue row's only source for its own deep link.
+    assert.equal(row.titleSlug, 'polaris');
   });
 
   test('drops a record missing either episodeId or seriesId', async () => {
@@ -107,13 +117,18 @@ describe('findByTvdbId', () => {
   });
 
   test('a series with 100% of episodes on disk counts as hasFile', async () => {
-    mockFetch(jsonRes([{ id: 21, monitored: true, statistics: { episodeFileCount: 10, percentOfEpisodes: 100 } }]));
-    assert.deepEqual(await sonarr.findByTvdbId(cfg, 9021), { id: 21, monitored: true, hasFile: true });
+    mockFetch(jsonRes([{ id: 21, titleSlug: 'second-sun', monitored: true, statistics: { episodeFileCount: 10, percentOfEpisodes: 100 } }]));
+    assert.deepEqual(await sonarr.findByTvdbId(cfg, 9021), { id: 21, titleSlug: 'second-sun', monitored: true, hasFile: true });
   });
 
   test('a partially-downloaded series is not hasFile', async () => {
-    mockFetch(jsonRes([{ id: 21, monitored: true, statistics: { episodeFileCount: 2, percentOfEpisodes: 20 } }]));
-    assert.deepEqual(await sonarr.findByTvdbId(cfg, 9021), { id: 21, monitored: true, hasFile: false });
+    mockFetch(jsonRes([{ id: 21, titleSlug: 'second-sun', monitored: true, statistics: { episodeFileCount: 2, percentOfEpisodes: 20 } }]));
+    assert.deepEqual(await sonarr.findByTvdbId(cfg, 9021), { id: 21, titleSlug: 'second-sun', monitored: true, hasFile: false });
+  });
+
+  test('titleSlug is null, not undefined, when Sonarr somehow omits it', async () => {
+    mockFetch(jsonRes([{ id: 21, monitored: true, statistics: {} }]));
+    assert.equal((await sonarr.findByTvdbId(cfg, 9021)).titleSlug, null);
   });
 });
 

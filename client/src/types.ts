@@ -201,10 +201,13 @@ export interface LifecycleItem extends MediaRequest {
   fromRequest: boolean;
   /** The DownloadItem id ("radarr-123") this trace is currently matched to in the queue, if any -- what /api/details expects. */
   queueId: string | null;
-  /** Radarr's movieId / Sonarr's seriesId, once resolved -- for a deep link
-   * straight to the title in that app. Null until Radarr/Sonarr has matched
-   * it (never resolved at all for an already-`available` request). */
+  /** Radarr's movieId / Sonarr's seriesId, once resolved -- kept for a
+   * future API-driven action against that id. Null until Radarr/Sonarr has
+   * matched it (never resolved at all for an already-`available` request). */
   externalId: number | null;
+  /** Radarr/Sonarr's own web-UI id for the same title -- their detail
+   * pages route by this, not `externalId`. This is what a deep link needs. */
+  titleSlug: string | null;
 }
 
 /** One grab/import/failure off a title's own Radarr/Sonarr history -- the

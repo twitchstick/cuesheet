@@ -90,6 +90,9 @@ export async function queue(cfg) {
       // lifecycle route can build a deep link for an orphan queue row
       // (one with no Seerr request to resolve an id from otherwise).
       movieId: r.movieId,
+      // Radarr's web UI routes by this, not the numeric id above -- see
+      // findByTmdbId's own comment.
+      titleSlug: r.movie?.titleSlug ?? null,
       title: r.movie?.title ?? r.title ?? 'Unknown movie',
       subtitle: r.movie?.year ? String(r.movie.year) : '',
       sizeBytes: Number(r.size) || 0,
@@ -113,6 +116,12 @@ export function imageRequest(cfg, ref) {
  * (which only knows TMDB) to Radarr's own internal id, which the queue and
  * everything else here is keyed on. Radarr's list endpoint takes tmdbId as
  * a query filter and returns at most one match.
+ *
+ * `titleSlug` is a second, separate identifier carried alongside `id`: the
+ * REST API (history, the queue, imageRequest) is keyed on the numeric id,
+ * but Radarr's own web UI routes movie pages by titleSlug instead --
+ * `{radarrUrl}/movie/{id}` looks plausible but 404s ("that movie cannot be
+ * found") since Radarr never treats the numeric id as a valid path there.
  */
 export async function findByTmdbId(cfg, tmdbId) {
   if (!Number.isInteger(tmdbId)) return null;
@@ -120,7 +129,7 @@ export async function findByTmdbId(cfg, tmdbId) {
   const matches = await fetchJson(`${cfg.url}/api/v3/movie?${params}`, { headers: headers(cfg) });
   const movie = Array.isArray(matches) ? matches[0] : null;
   if (!movie?.id) return null;
-  return { id: movie.id, monitored: Boolean(movie.monitored), hasFile: Boolean(movie.hasFile) };
+  return { id: movie.id, titleSlug: movie.titleSlug ?? null, monitored: Boolean(movie.monitored), hasFile: Boolean(movie.hasFile) };
 }
 
 /**

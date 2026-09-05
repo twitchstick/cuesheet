@@ -186,8 +186,10 @@ describe('/api/lifecycle (Seerr requests correlated with Radarr/Sonarr queues)',
     assert.equal(movie.stage, 'downloading');
     assert.equal(movie.queueId, 'radarr-10');
     assert.equal(movie.fromRequest, true);
-    // Radarr's own internal id, resolved via findByTmdbId -- the deep link's id.
+    // Radarr's own internal (REST API) id, resolved via findByTmdbId.
     assert.equal(movie.externalId, 10);
+    // The web-UI id -- what the client's deep link actually needs.
+    assert.equal(movie.titleSlug, 'ember-and-ash-2023');
   });
 
   test('a tv request is matched via tvdbId, not tmdbId, to its Sonarr queue row', async () => {
@@ -197,6 +199,7 @@ describe('/api/lifecycle (Seerr requests correlated with Radarr/Sonarr queues)',
     assert.equal(tv.stage, 'downloading');
     assert.equal(tv.queueId, 'sonarr-200');
     assert.equal(tv.externalId, 55);
+    assert.equal(tv.titleSlug, 'second-sun');
   });
 
   test('an unclaimed Radarr queue row surfaces as an orphan, not dropped', async () => {
@@ -205,8 +208,9 @@ describe('/api/lifecycle (Seerr requests correlated with Radarr/Sonarr queues)',
     assert.ok(orphan, 'expected the orphaned Redline queue row');
     assert.equal(orphan.fromRequest, false);
     assert.equal(orphan.id, 'queue-radarr-77');
-    // No Seerr request to resolve one from -- straight off its own queue row.
+    // No Seerr request to resolve either from -- straight off its own queue row.
     assert.equal(orphan.externalId, 77);
+    assert.equal(orphan.titleSlug, 'redline-2021');
   });
 });
 

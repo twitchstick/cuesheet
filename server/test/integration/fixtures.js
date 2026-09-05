@@ -75,7 +75,7 @@ export const jellyfinRoutes = {
 
 export const radarrRoutes = {
   // findByTmdbId(10) for the lifecycle test's matched movie request.
-  'GET /api/v3/movie': { body: [{ id: 10, monitored: true, hasFile: false }] },
+  'GET /api/v3/movie': { body: [{ id: 10, titleSlug: 'ember-and-ash-2023', monitored: true, hasFile: false }] },
   'GET /api/v3/movie/10': {
     body: {
       id: 10,
@@ -100,9 +100,9 @@ export const radarrRoutes = {
     body: {
       records: [
         // Claimed by the movie request above (movieId 10 == findByTmdbId's id).
-        { movieId: 10, size: 1000, sizeleft: 400, timeleft: '01:00:00', movie: { title: 'Ember & Ash', year: 2023 } },
+        { movieId: 10, size: 1000, sizeleft: 400, timeleft: '01:00:00', movie: { title: 'Ember & Ash', year: 2023, titleSlug: 'ember-and-ash-2023' } },
         // No matching request -- becomes an orphan on /api/lifecycle.
-        { movieId: 77, size: 2000, sizeleft: 2000, timeleft: '02:00:00', movie: { title: 'Redline', year: 2021 } },
+        { movieId: 77, size: 2000, sizeleft: 2000, timeleft: '02:00:00', movie: { title: 'Redline', year: 2021, titleSlug: 'redline-2021' } },
       ],
     },
   },
@@ -127,7 +127,7 @@ export const radarrRoutes = {
 
 export const sonarrRoutes = {
   // findByTvdbId(99) for the lifecycle test's matched tv request.
-  'GET /api/v3/series': { body: [{ id: 55, monitored: true, statistics: { episodeFileCount: 0, percentOfEpisodes: 0 } }] },
+  'GET /api/v3/series': { body: [{ id: 55, titleSlug: 'second-sun', monitored: true, statistics: { episodeFileCount: 0, percentOfEpisodes: 0 } }] },
   'GET /api/v3/queue': {
     body: {
       records: [
@@ -138,7 +138,7 @@ export const sonarrRoutes = {
           size: 800,
           sizeleft: 200,
           timeleft: '00:30:00',
-          series: { title: 'Second Sun' },
+          series: { title: 'Second Sun', titleSlug: 'second-sun' },
           episode: { seasonNumber: 1, episodeNumber: 4, title: 'Ashfall' },
         },
       ],

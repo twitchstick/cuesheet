@@ -23,7 +23,7 @@ export function baseLifecycleStage(mediaStatus) {
  * @param queueItems the merged Radarr+Sonarr queue rows for this poll
  * @param health `{ radarr: Issue[], sonarr: Issue[] }`, most severe first
  * @param deps `{ radarrEnabled, sonarrEnabled, findByTmdbId(tmdbId), findByTvdbId(tvdbId) }` --
- *   the two lookups are async functions returning `{ id, monitored, hasFile } | null`;
+ *   the two lookups are async functions returning `{ id, titleSlug, monitored, hasFile } | null`;
  *   index.js supplies cached, real ones, tests supply plain fakes.
  */
 export async function lifecycleFor(r, queueItems, health, deps) {
@@ -35,13 +35,17 @@ export async function lifecycleFor(r, queueItems, health, deps) {
   let downloadStatus = null;
   let subtitle = null;
   let queueId = null;
-  // Radarr's movieId / Sonarr's seriesId, once resolved -- lets the client
-  // link straight to the title in that app. Stays null for an already-
-  // `available` request (Seerr's own status is enough there, so the lookup
-  // below never runs) and for any request Radarr/Sonarr hasn't matched yet.
+  // Radarr's movieId / Sonarr's seriesId, once resolved -- kept for a
+  // future API-driven action (retry, blocklist) against that id. Stays
+  // null for an already-`available` request (Seerr's own status is enough
+  // there, so the lookup below never runs) and for anything unmatched.
   let externalId = null;
+  // The *web UI's* own id for the same title -- Radarr/Sonarr route their
+  // detail pages by this, not the numeric id above. Only this, not
+  // externalId, belongs in a link to that app.
+  let titleSlug = null;
 
-  const base = { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId };
+  const base = { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId, titleSlug };
   if (stage === 'available') return base;
 
   try {
@@ -54,6 +58,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
       const found = await deps.findByTmdbId(r.tmdbId);
       if (found) {
         externalId = found.id;
+        titleSlug = found.titleSlug;
         const row = queueItems.find((q) => q.id === `radarr-${found.id}`);
         if (row) {
           stage = row.status === 'importing' ? 'importing' : 'downloading';
@@ -70,6 +75,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
       const found = await deps.findByTvdbId(r.tvdbId);
       if (found) {
         externalId = found.id;
+        titleSlug = found.titleSlug;
         const row = queueItems.find((q) => q.source === 'sonarr' && q.seriesId === found.id);
         if (row) {
           stage = row.status === 'importing' ? 'importing' : 'downloading';
@@ -99,7 +105,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
     if (issue) stallReason = issue.message;
   }
 
-  return { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId };
+  return { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId, titleSlug };
 }
 
 /**
@@ -134,9 +140,10 @@ export function orphanLifecycleItem(row) {
     subtitle: row.subtitle || null,
     fromRequest: false,
     queueId: row.id,
-    // Carried on the queue row itself -- an orphan has no Seerr request to
-    // resolve a Radarr/Sonarr id from otherwise.
+    // Both carried on the queue row itself -- an orphan has no Seerr
+    // request to resolve either from otherwise.
     externalId: row.movieId ?? row.seriesId ?? null,
+    titleSlug: row.titleSlug ?? null,
   };
 }
 

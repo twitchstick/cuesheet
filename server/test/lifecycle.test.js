@@ -141,20 +141,28 @@ describe('lifecycleFor', () => {
     assert.equal(item.fromRequest, true);
   });
 
-  test('externalId is Radarr/Sonarr\'s own internal id, once resolved, for the client\'s deep link', async () => {
-    const deps = { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 42, monitored: true, hasFile: false }) };
+  test('externalId is Radarr/Sonarr\'s own internal (REST API) id, once resolved', async () => {
+    const deps = { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 42, titleSlug: 'ember-and-ash-2023', monitored: true, hasFile: false }) };
     const item = await lifecycleFor(request(), [], noHealth, deps);
     assert.equal(item.externalId, 42);
   });
 
-  test('externalId stays null for an already-available request -- the lookup never runs, so there is nothing to resolve it from', async () => {
-    const item = await lifecycleFor(request({ mediaStatus: 'available' }), [], noHealth, { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 42, monitored: true, hasFile: true }) });
-    assert.equal(item.externalId, null);
+  test('titleSlug is Radarr/Sonarr\'s own web-UI id, once resolved -- what the client\'s deep link actually needs, not externalId', async () => {
+    const deps = { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 42, titleSlug: 'ember-and-ash-2023', monitored: true, hasFile: false }) };
+    const item = await lifecycleFor(request(), [], noHealth, deps);
+    assert.equal(item.titleSlug, 'ember-and-ash-2023');
   });
 
-  test('externalId stays null when Radarr/Sonarr has no match for this title at all', async () => {
+  test('externalId and titleSlug both stay null for an already-available request -- the lookup never runs, so there is nothing to resolve either from', async () => {
+    const item = await lifecycleFor(request({ mediaStatus: 'available' }), [], noHealth, { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 42, titleSlug: 'x', monitored: true, hasFile: true }) });
+    assert.equal(item.externalId, null);
+    assert.equal(item.titleSlug, null);
+  });
+
+  test('externalId and titleSlug both stay null when Radarr/Sonarr has no match for this title at all', async () => {
     const item = await lifecycleFor(request(), [], noHealth, { ...noDeps, radarrEnabled: true, findByTmdbId: async () => null });
     assert.equal(item.externalId, null);
+    assert.equal(item.titleSlug, null);
   });
 });
 
@@ -178,6 +186,11 @@ describe('orphanLifecycleItem', () => {
     assert.equal(orphanLifecycleItem({ id: 'radarr-77', movieId: 77 }).externalId, 77);
     assert.equal(orphanLifecycleItem({ id: 'sonarr-200', seriesId: 55 }).externalId, 55);
     assert.equal(orphanLifecycleItem({ id: 'radarr-1' }).externalId, null, 'neither field present -- null, not undefined');
+  });
+
+  test('titleSlug also comes straight off the queue row -- an orphan\'s only source for either', () => {
+    assert.equal(orphanLifecycleItem({ id: 'radarr-77', movieId: 77, titleSlug: 'redline-2021' }).titleSlug, 'redline-2021');
+    assert.equal(orphanLifecycleItem({ id: 'radarr-1' }).titleSlug, null);
   });
 
   test('mediaType comes from the queue row\'s type, episode -> tv', () => {
