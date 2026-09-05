@@ -13,7 +13,9 @@ import {
   queueStatus,
   queueMessage,
   historyEvent,
+  isMainModule,
 } from '../util.js';
+import { pathToFileURL } from 'node:url';
 
 describe('pad2 / episodeCode', () => {
   test('pads single digits, leaves double digits alone', () => {
@@ -229,5 +231,35 @@ describe('historyEvent', () => {
       indexer: null,
       detail: null,
     });
+  });
+});
+
+describe('isMainModule', () => {
+  test('true when import.meta.url is the same file argv[1] points at', () => {
+    const url = pathToFileURL('/opt/cuesheet/server/index.js').href;
+    assert.equal(isMainModule(url, '/opt/cuesheet/server/index.js'), true);
+  });
+
+  test('false when argv[1] is a different file (this module was only imported)', () => {
+    const url = pathToFileURL('/opt/cuesheet/server/index.js').href;
+    assert.equal(isMainModule(url, '/opt/cuesheet/e2e/fixture-server.mjs'), false);
+  });
+
+  test('false, not a thrown error, when argv[1] is missing entirely', () => {
+    const url = pathToFileURL('/opt/cuesheet/server/index.js').href;
+    assert.equal(isMainModule(url, undefined), false);
+  });
+
+  // The actual bug this replaces: comparing import.meta.url against a
+  // hand-built `file://${argv1}` string assumes argv1 is already a
+  // slash-separated, correctly-escaped URL path -- which a real OS path
+  // often isn't (a space here; a Windows drive letter and backslashes are
+  // the same problem, just not reproducible from a POSIX test runner --
+  // see the Windows CI job for that coverage).
+  test('a path with characters a raw file:// concat would leave un-escaped still matches', () => {
+    const argv1 = '/opt/cue sheet/server/index.js';
+    const url = pathToFileURL(argv1).href;
+    assert.equal(isMainModule(url, argv1), true);
+    assert.notEqual(url, `file://${argv1}`, 'sanity check: the old naive comparison would not have matched this');
   });
 });

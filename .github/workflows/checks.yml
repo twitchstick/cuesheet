@@ -92,3 +92,38 @@ jobs:
         run: npm ci
       - working-directory: client
         run: npm audit --audit-level=high
+
+  windows:
+    # Every OS-path assumption in this repo (server/index.js's own-module
+    # check, e2e/fixture-server.mjs's dynamic import of it) has historically
+    # broken silently on Windows and passed every one of the Linux jobs
+    # above without a single failure. This is the only job that would
+    # actually catch that class of regression again.
+    name: Server tests + fixture-server smoke (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - working-directory: client
+        run: npm ci
+      - working-directory: client
+        run: npm run build
+      # Not the full Playwright suite -- just proves e2e/fixture-server.mjs's
+      # own dynamic import() of server/index.js (built from a Windows path)
+      # actually resolves and the server comes up, which is the exact line
+      # that used to throw on this OS before pathToFileURL() fixed it.
+      - name: Fixture server comes up
+        shell: bash
+        run: |
+          node e2e/fixture-server.mjs &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:4173/api/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          echo "fixture server never came up" >&2
+          exit 1

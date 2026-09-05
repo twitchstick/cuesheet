@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config, enabledServices } from './config.js';
 import { securityHeaders, noStore, requireAuth, checkOrigin, notFound, errorHandler } from './middleware.js';
+import { isMainModule } from './util.js';
 import authRoutes from './routes/auth.js';
 import settingsRoutes from './routes/settings.js';
 import dashboardRoutes from './routes/dashboard.js';
@@ -54,7 +55,7 @@ app.use((req, res, next) => {
 // both of which set argv[1] to this file -- not when it's merely imported.
 export { app };
 
-const isMain = import.meta.url === `file://${process.argv[1]}`;
+const isMain = isMainModule(import.meta.url, process.argv[1]);
 if (isMain) {
   app.listen(config.port, () => {
     const services = Object.entries(enabledServices())

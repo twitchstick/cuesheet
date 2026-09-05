@@ -10,7 +10,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { startUpstream } from '../server/test/integration/upstream.js';
 import { plexRoutes, jellyfinRoutes, radarrRoutes, sonarrRoutes, seerrRoutes, sabnzbdRoutes } from '../server/test/integration/fixtures.js';
 
@@ -51,7 +51,9 @@ process.env.ADMIN_PASSWORD = 'e2e-test-password-1';
 // Imported, not executed directly, so server/index.js's own `isMain` guard
 // leaves the binding to us -- this process also owns the upstream fixtures
 // and needs to close them together on shutdown.
-const { app } = await import(path.join(__dirname, '../server/index.js'));
+// pathToFileURL(), not a raw path.join() string -- dynamic import() needs a
+// real URL, and a Windows path (`C:\...`) handed to it directly isn't one.
+const { app } = await import(pathToFileURL(path.join(__dirname, '../server/index.js')).href);
 const server = http.createServer(app);
 server.listen(Number(PORT), '127.0.0.1', () => {
   console.log(`e2e fixture server listening on http://127.0.0.1:${PORT}`);

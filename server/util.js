@@ -1,4 +1,21 @@
+import { pathToFileURL } from 'node:url';
+
 export const pad2 = (n) => String(n ?? 0).padStart(2, '0');
+
+/**
+ * Was this module the one actually launched (`node server/index.js`), not
+ * merely imported (by a test, or e2e/fixture-server.mjs)? Comparing raw
+ * strings (`` `file://${argv1}` ``) breaks on Windows: import.meta.url
+ * comes out as `file:///C:/...` (forward slashes, percent-encoded) while
+ * argv[1] is a plain `C:\...` path, so they'd never match and the app
+ * would never bind its port when actually launched. pathToFileURL()
+ * normalizes both the same way Node's own loader does. Pulled out as its
+ * own function so this cross-platform edge is unit-testable without
+ * actually spawning a process on each OS.
+ */
+export function isMainModule(moduleUrl, argv1) {
+  return argv1 != null && moduleUrl === pathToFileURL(argv1).href;
+}
 
 export const episodeCode = (season, episode) => `S${pad2(season)}E${pad2(episode)}`;
 
