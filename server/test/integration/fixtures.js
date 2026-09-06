@@ -111,7 +111,11 @@ export const radarrRoutes = {
     body: {
       records: [
         // Claimed by the movie request above (movieId 10 == findByTmdbId's id).
-        { movieId: 10, size: 1000, sizeleft: 400, timeleft: '01:00:00', movie: { title: 'Ember & Ash', year: 2023, titleSlug: 'ember-and-ash-2023' }, quality: { quality: { name: 'Bluray-1080p' } } },
+        // downloadId matches history's dl-1080p-new below -- that attempt is
+        // the one actually still active, which is what earns it "in progress"
+        // rather than the more skeptical "outcome unknown" a resolved-looking
+        // but no-longer-queued grab gets instead.
+        { movieId: 10, size: 1000, sizeleft: 400, timeleft: '01:00:00', downloadId: 'dl-1080p-new', movie: { title: 'Ember & Ash', year: 2023, titleSlug: 'ember-and-ash-2023' }, quality: { quality: { name: 'Bluray-1080p' } } },
         // No matching request -- becomes an orphan on /api/lifecycle. Paused,
         // not just downloading -- e2e/responsive.spec.ts's live-progress test
         // needs a large, fast-moving would-be interpolation rate (half done,
@@ -149,12 +153,15 @@ export const sonarrRoutes = {
     body: {
       records: [
         // Claimed via seriesId 55, matching findByTvdbId's result above.
+        // downloadId matches history's dl-1080p-new below -- see the
+        // matching comment on Radarr's own queue fixture above.
         {
           episodeId: 200,
           seriesId: 55,
           size: 800,
           sizeleft: 200,
           timeleft: '00:30:00',
+          downloadId: 'dl-1080p-new',
           series: { title: 'Second Sun', titleSlug: 'second-sun' },
           episode: { seasonNumber: 1, episodeNumber: 4, title: 'Ashfall' },
           quality: { quality: { name: 'WEBDL-1080p' } },

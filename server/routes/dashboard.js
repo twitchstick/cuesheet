@@ -3,7 +3,7 @@
  * lifecycle that correlates the two. */
 import express from 'express';
 import { config } from '../config.js';
-import { cached } from '../cache.js';
+import { cached, evict } from '../cache.js';
 import { addDays, isIsoDate, localDate } from '../util.js';
 import * as plex from '../services/plex.js';
 import * as jellyfin from '../services/jellyfin.js';
@@ -208,18 +208,29 @@ router.get('/lifecycle', async (_req, res, next) => {
  * them will never open. Shares /api/lifecycle's own cache keys for the
  * tmdbId/tvdbId -> internal id lookup, so this is a cache hit whenever that
  * poll has already resolved the same title recently (almost always).
+ *
+ * `fresh=1` skips this route's own 5-minute cache. The client only ever
+ * sets it after seeing real evidence something changed (a stage or
+ * download-status move on the trace this history belongs to) -- honoring
+ * that is the other half of "refresh on a real change," or the client's
+ * own re-fetch would just land back on the same stale cached snapshot that
+ * hadn't caught the change yet either.
  */
 router.get('/lifecycle/history', async (req, res, next) => {
   try {
     const mediaType = req.query.mediaType;
     if (mediaType !== 'movie' && mediaType !== 'tv') return res.status(400).json({ error: 'mediaType must be movie or tv' });
+    const fresh = req.query.fresh === '1';
 
     if (mediaType === 'movie') {
       if (!config.radarr.enabled) return res.status(404).json({ error: 'Radarr is not connected' });
       const tmdbId = Number(req.query.tmdbId);
       if (!Number.isInteger(tmdbId)) return res.status(400).json({ error: 'tmdbId is required' });
       const found = await cached(`lifecycle:radarr:${tmdbId}`, 5 * 60_000, () => radarr.findByTmdbId(config.radarr, tmdbId));
-      const items = found ? await cached(`lifecycle-history:radarr:${found.id}`, 5 * 60_000, () => radarr.history(config.radarr, found.id)) : [];
+      if (!found) return res.json({ items: [] });
+      const key = `lifecycle-history:radarr:${found.id}`;
+      if (fresh) evict(key);
+      const items = await cached(key, 5 * 60_000, () => radarr.history(config.radarr, found.id));
       return res.json({ items });
     }
 
@@ -227,7 +238,10 @@ router.get('/lifecycle/history', async (req, res, next) => {
     const tvdbId = Number(req.query.tvdbId);
     if (!Number.isInteger(tvdbId)) return res.status(400).json({ error: 'tvdbId is required' });
     const found = await cached(`lifecycle:sonarr:${tvdbId}`, 5 * 60_000, () => sonarr.findByTvdbId(config.sonarr, tvdbId));
-    const items = found ? await cached(`lifecycle-history:sonarr:${found.id}`, 5 * 60_000, () => sonarr.history(config.sonarr, found.id)) : [];
+    if (!found) return res.json({ items: [] });
+    const key = `lifecycle-history:sonarr:${found.id}`;
+    if (fresh) evict(key);
+    const items = await cached(key, 5 * 60_000, () => sonarr.history(config.sonarr, found.id));
     res.json({ items });
   } catch (err) {
     next(err);

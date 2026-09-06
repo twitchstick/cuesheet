@@ -183,6 +183,19 @@ describe('lifecycleFor', () => {
     const item = await lifecycleFor(request({ mediaStatus: 'available' }), [], noHealth, noDeps);
     assert.equal(item.quality, null);
   });
+
+  test('activeDownloadId comes from the matched queue row -- the client\'s only way to tell a live attempt apart from a stale one in this title\'s own history', async () => {
+    const deps = { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 1, monitored: true, hasFile: false }) };
+    const queueItems = [{ id: 'radarr-1', status: 'downloading', progress: 0.5, timeleft: null, statusDetail: null, subtitle: null, downloadId: 'dl-abc' }];
+    const item = await lifecycleFor(request(), queueItems, noHealth, deps);
+    assert.equal(item.activeDownloadId, 'dl-abc');
+  });
+
+  test('activeDownloadId stays null with no matching queue row, even once hasFile jumps straight to available', async () => {
+    const deps = { ...noDeps, radarrEnabled: true, findByTmdbId: async () => ({ id: 1, monitored: true, hasFile: true, quality: 'Bluray-1080p' }) };
+    const item = await lifecycleFor(request(), [], noHealth, deps);
+    assert.equal(item.activeDownloadId, null);
+  });
 });
 
 describe('orphanLifecycleItem', () => {
@@ -215,6 +228,11 @@ describe('orphanLifecycleItem', () => {
   test('quality comes straight off the queue row too, null when the row has none', () => {
     assert.equal(orphanLifecycleItem({ id: 'radarr-77', movieId: 77, quality: 'WEBDL-720p' }).quality, 'WEBDL-720p');
     assert.equal(orphanLifecycleItem({ id: 'radarr-1' }).quality, null);
+  });
+
+  test('activeDownloadId comes straight off the queue row too, null when the row has none', () => {
+    assert.equal(orphanLifecycleItem({ id: 'radarr-77', movieId: 77, downloadId: 'dl-abc' }).activeDownloadId, 'dl-abc');
+    assert.equal(orphanLifecycleItem({ id: 'radarr-1' }).activeDownloadId, null);
   });
 
   test('mediaType comes from the queue row\'s type, episode -> tv', () => {

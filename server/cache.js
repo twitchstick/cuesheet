@@ -79,3 +79,15 @@ export async function cached(key, ttlMs, loader) {
 export function invalidate(prefix) {
   for (const key of store.keys()) if (key.startsWith(prefix)) store.delete(key);
 }
+
+/**
+ * Drop exactly one cached value so the next read is a live fetch, not a
+ * stale hit. Deliberately not invalidate(prefix) with the full key as the
+ * "prefix" -- these keys carry a numeric id at the end
+ * (`lifecycle-history:radarr:10`), and startsWith would also wipe
+ * `lifecycle-history:radarr:100`. A caller here already knows the exact
+ * key it means to drop.
+ */
+export function evict(key) {
+  store.delete(key);
+}

@@ -50,8 +50,13 @@ export async function lifecycleFor(r, queueItems, health, deps) {
   // a request Seerr already reports as available, same as externalId/
   // titleSlug above -- the lookup that would find it never runs there.
   let quality = null;
+  // The download client's own job id for whatever Radarr/Sonarr is
+  // *currently* tracking in its queue -- null once nothing is actively
+  // downloading. Lets the client tell a live attempt apart from a
+  // resolved-looking but stale one sitting in this title's own history.
+  let activeDownloadId = null;
 
-  const base = { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId, titleSlug, quality };
+  const base = { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId, titleSlug, quality, activeDownloadId };
   if (stage === 'available') return base;
 
   try {
@@ -75,6 +80,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
           subtitle = row.subtitle || null;
           queueId = row.id;
           quality = row.quality ?? null;
+          activeDownloadId = row.downloadId ?? null;
         } else if (found.hasFile) {
           stage = 'available';
           quality = found.quality ?? null;
@@ -95,6 +101,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
           subtitle = row.subtitle || null;
           queueId = row.id;
           quality = row.quality ?? null;
+          activeDownloadId = row.downloadId ?? null;
         } else if (found.hasFile) stage = 'available';
         else if (found.monitored && LIFECYCLE_STAGE[stage] < LIFECYCLE_STAGE.monitored) stage = 'monitored';
       }
@@ -115,7 +122,7 @@ export async function lifecycleFor(r, queueItems, health, deps) {
     if (issue) stallReason = issue.message;
   }
 
-  return { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId, titleSlug, quality };
+  return { ...r, stage, progress, timeleft, statusDetail, stallReason, downloadStatus, subtitle, fromRequest: true, queueId, externalId, titleSlug, quality, activeDownloadId };
 }
 
 /**
@@ -155,6 +162,7 @@ export function orphanLifecycleItem(row) {
     externalId: row.movieId ?? row.seriesId ?? null,
     titleSlug: row.titleSlug ?? null,
     quality: row.quality ?? null,
+    activeDownloadId: row.downloadId ?? null,
   };
 }
 

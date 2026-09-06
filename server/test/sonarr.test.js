@@ -92,6 +92,7 @@ describe('queue', () => {
             sizeleft: 120_000_000,
             status: 'downloading',
             quality: { quality: { name: 'WEBDL-1080p' } },
+            downloadId: 'dl-abc123',
           },
         ],
       }),
@@ -103,12 +104,14 @@ describe('queue', () => {
     // An orphan queue row's only source for its own deep link.
     assert.equal(row.titleSlug, 'polaris');
     assert.equal(row.quality, 'WEBDL-1080p');
+    assert.equal(row.downloadId, 'dl-abc123');
   });
 
-  test('quality is null, not undefined, when the queue record has none', async () => {
+  test('quality and downloadId are null, not undefined, when the queue record has neither', async () => {
     mockFetch(jsonRes({ records: [{ episodeId: 1, seriesId: 1, size: 100, sizeleft: 50 }] }));
     const [row] = await sonarr.queue(cfg);
     assert.equal(row.quality, null);
+    assert.equal(row.downloadId, null);
   });
 
   test('drops a record missing either episodeId or seriesId', async () => {

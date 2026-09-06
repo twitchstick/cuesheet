@@ -97,6 +97,11 @@ export async function queue(cfg) {
       // movie-file quality read in details() above, just off the queue's
       // own record instead of the file already on disk.
       quality: r.quality?.quality?.name ?? null,
+      // The download client's own job id for whatever's active right now --
+      // the same field historyEvent() reads off a history record. Lets the
+      // client tell "this attempt is the one actually in the queue" apart
+      // from a resolved-looking but stale, no-longer-running one.
+      downloadId: r.downloadId || null,
       title: r.movie?.title ?? r.title ?? 'Unknown movie',
       subtitle: r.movie?.year ? String(r.movie.year) : '',
       sizeBytes: Number(r.size) || 0,

@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { cached, invalidate, MAX_ENTRIES } from '../cache.js';
+import { cached, invalidate, evict, MAX_ENTRIES } from '../cache.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -120,6 +120,41 @@ describe('cached()', () => {
         return 'refetched';
       });
       assert.equal(calls, 2);
+    });
+  });
+
+  describe('evict()', () => {
+    test('drops exactly one key, forcing its next read to be a live fetch', async () => {
+      await cached('ev:1', 10_000, () => 'v1');
+      evict('ev:1');
+      let calls = 0;
+      const value = await cached('ev:1', 10_000, () => {
+        calls++;
+        return 'refetched';
+      });
+      assert.equal(value, 'refetched');
+      assert.equal(calls, 1);
+    });
+
+    test('unlike invalidate(prefix), never touches a key that merely starts with the same text', async () => {
+      // The exact failure mode this exists to avoid: a numeric id at the end
+      // of the key means invalidate('lifecycle-history:radarr:10') would
+      // also wipe '...radarr:100'. evict() only ever drops an exact match.
+      await cached('lifecycle-history:radarr:10', 10_000, () => 'ten');
+      await cached('lifecycle-history:radarr:100', 10_000, () => 'hundred');
+      evict('lifecycle-history:radarr:10');
+
+      let hundredCalls = 0;
+      const hundred = await cached('lifecycle-history:radarr:100', 10_000, () => {
+        hundredCalls++;
+        return 'hundred-refetched';
+      });
+      assert.equal(hundred, 'hundred', 'the un-evicted key must still be the original cached value');
+      assert.equal(hundredCalls, 0);
+    });
+
+    test('evicting a key that was never cached is a harmless no-op', () => {
+      assert.doesNotThrow(() => evict('never-cached'));
     });
   });
 

@@ -41,10 +41,14 @@ export const api = {
   requests: () => get<{ items: MediaRequest[] }>('/api/requests'),
   lifecycle: () => get<{ items: LifecycleItem[]; errors: Errors }>('/api/lifecycle'),
   // Fetched behind a click, not on every poll -- see server/routes/dashboard.js.
-  lifecycleHistory: (item: Pick<LifecycleItem, 'mediaType' | 'tmdbId' | 'tvdbId'>) => {
+  // `fresh` skips the server's own cache -- set it only when the caller has
+  // real evidence (a stage/status move) that the cached snapshot might
+  // already be stale, not on every ordinary open.
+  lifecycleHistory: (item: Pick<LifecycleItem, 'mediaType' | 'tmdbId' | 'tvdbId'>, opts: { fresh?: boolean } = {}) => {
     const params = new URLSearchParams({ mediaType: item.mediaType });
     const id = item.mediaType === 'movie' ? item.tmdbId : item.tvdbId;
     if (id != null) params.set(item.mediaType === 'movie' ? 'tmdbId' : 'tvdbId', String(id));
+    if (opts.fresh) params.set('fresh', '1');
     return get<{ items: HistoryEvent[] }>(`/api/lifecycle/history?${params}`);
   },
   setupStatus: () => get<SetupStatus>('/api/setup/status'),

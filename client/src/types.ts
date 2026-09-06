@@ -217,6 +217,11 @@ export interface LifecycleItem extends MediaRequest {
    * disk. Null otherwise, including for anything Seerr already reports as
    * available (that shortcut skips the Radarr/Sonarr lookup entirely). */
   quality: string | null;
+  /** The download client's own job id for whatever Radarr/Sonarr is
+   * *currently* tracking in its queue for this title -- null once nothing
+   * is actively downloading. Lets the client tell a live attempt in this
+   * title's own history apart from a resolved-looking but stale one. */
+  activeDownloadId: string | null;
 }
 
 /** One grab/import/failure off a title's own Radarr/Sonarr history -- the

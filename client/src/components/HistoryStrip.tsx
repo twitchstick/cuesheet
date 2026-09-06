@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { api, ApiError } from '../api';
 import { eventTimestamp } from '../lib/format';
-import { groupHistory, type AttemptOutcome, type HistoryRow } from '../lib/historyGrouping';
+import { formatEpisodeCodes, groupHistory, type AttemptOutcome, type HistoryRow } from '../lib/historyGrouping';
 import type { HistoryEvent, LifecycleItem } from '../types';
 
 const EVENT: Record<HistoryRow['type'], { label: string; dot: string }> = {
@@ -15,16 +15,23 @@ const EVENT: Record<HistoryRow['type'], { label: string; dot: string }> = {
 };
 
 // An attempt group's own header uses these instead of a per-event dot/label
-// -- the group as a whole either landed, failed, or (its most recent grab,
-// with nothing after it yet) is still running.
+// -- the group as a whole either landed, failed, partly landed (a season
+// pack where one episode failed and another imported fine), or (its most
+// recent grab, with nothing after it yet, and it's the job the live queue
+// currently says is active) is still running. "unknown" is deliberately
+// distinct from "pending": a grab with nothing recorded after it that
+// *isn't* the queue's current job is an old, unresolved one sitting in
+// history for some other reason, not something actually in progress now.
 const OUTCOME: Record<AttemptOutcome, { label: string; dot: string }> = {
   imported: { label: 'Imported', dot: 'bg-emerald-400' },
   failed: { label: 'Failed', dot: 'bg-tally-on' },
+  mixed: { label: 'Partly imported', dot: 'bg-tally-hold' },
   pending: { label: 'In progress', dot: 'bg-accent-400' },
+  unknown: { label: 'Outcome unknown', dot: 'bg-fog-500' },
 };
 
 interface Props {
-  item: Pick<LifecycleItem, 'id' | 'mediaType' | 'tmdbId' | 'tvdbId' | 'createdAt' | 'requestedBy' | 'stage'>;
+  item: Pick<LifecycleItem, 'id' | 'mediaType' | 'tmdbId' | 'tvdbId' | 'createdAt' | 'requestedBy' | 'stage' | 'downloadStatus' | 'activeDownloadId'>;
   /** Open (and fetched) from the start, for a trace that's already flagged
    * as a problem -- exactly the case where "why" is worth showing without
    * making someone click for it. */
@@ -44,21 +51,33 @@ export default function HistoryStrip({ item, defaultOpen = false }: Props) {
   const [events, setEvents] = useState<HistoryEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // A stage move (grabbed -> downloading, downloading -> available, a fresh
-  // failure...) means Radarr/Sonarr's own history almost certainly grew a
-  // new row -- without this, a card left open/mounted across a poll would
-  // keep showing whatever it fetched the moment it was first opened,
-  // forever, no matter how much actually happened afterward. Compared by
-  // value against a ref, not made an effect dependency directly -- `item`
-  // (and therefore `item.stage`) is a fresh string each poll regardless of
-  // whether it actually changed, and this must only fire on a real move.
-  const lastStage = useRef(item.stage);
+  // A stage move (grabbed -> downloading, downloading -> available) means
+  // Radarr/Sonarr's own history almost certainly grew a new row -- without
+  // this, a card left open/mounted across a poll would keep showing
+  // whatever it fetched the moment it was first opened, forever, no matter
+  // how much actually happened afterward. downloadStatus is watched too,
+  // not just stage: a downloading -> failed -> re-downloading cycle for the
+  // same title can leave stage reading 'downloading' the entire time (see
+  // lifecycle.js -- every queue status but 'importing' collapses onto that
+  // one stage), so stage alone would miss exactly the transition this
+  // exists to catch. Compared by value against a ref, not made an effect
+  // dependency directly -- `item` is a fresh object every poll regardless
+  // of whether either actually changed, and this must only fire on a real move.
+  const lastSignal = useRef(`${item.stage}:${item.downloadStatus ?? ''}`);
+  // Set alongside clearing events/error above, and read (then reset) by the
+  // fetch effect below -- tells the server this refetch is chasing a real
+  // change, not an ordinary open, so it's worth skipping that route's own
+  // five-minute cache rather than risking a snapshot that's just as stale
+  // as the one that missed the change in the first place.
+  const forceFresh = useRef(false);
   useEffect(() => {
-    if (lastStage.current === item.stage) return;
-    lastStage.current = item.stage;
+    const signal = `${item.stage}:${item.downloadStatus ?? ''}`;
+    if (lastSignal.current === signal) return;
+    lastSignal.current = signal;
+    forceFresh.current = true;
     setEvents(null);
     setError(null);
-  }, [item.stage]);
+  }, [item.stage, item.downloadStatus]);
 
   // `item` is a new object every poll (the whole /api/lifecycle list is
   // rebuilt each refresh), so this re-runs often once `open` -- harmless,
@@ -69,8 +88,10 @@ export default function HistoryStrip({ item, defaultOpen = false }: Props) {
   useEffect(() => {
     if (!open || events !== null || error) return;
     let live = true;
+    const fresh = forceFresh.current;
+    forceFresh.current = false;
     api
-      .lifecycleHistory(item)
+      .lifecycleHistory(item, { fresh })
       .then((r) => live && setEvents(r.items))
       .catch((err) => live && setError(err instanceof ApiError ? err.message : 'Could not load history'));
     return () => {
@@ -88,6 +109,7 @@ export default function HistoryStrip({ item, defaultOpen = false }: Props) {
 
   const retry = (e: MouseEvent) => {
     e.stopPropagation();
+    forceFresh.current = true;
     setError(null);
   };
 
@@ -102,7 +124,7 @@ export default function HistoryStrip({ item, defaultOpen = false }: Props) {
     detail: item.requestedBy ? `by ${item.requestedBy}` : null,
   };
   const rows: HistoryRow[] | null = events === null ? null : [...events, requested].sort((a, b) => b.at - a.at);
-  const entries = rows === null ? null : groupHistory(rows);
+  const entries = rows === null ? null : groupHistory(rows, item.activeDownloadId);
 
   return (
     <div className="mt-4 border-t border-line pt-3">
@@ -144,8 +166,13 @@ export default function HistoryStrip({ item, defaultOpen = false }: Props) {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-3">
                         <span className="font-medium text-fog-300">
-                          Attempt {entry.attemptNumber}
-                          {entry.episodeCode ? ` · ${entry.episodeCode}` : ''}
+                          {/* Only jobs covering the same episode(s) -- or, for a
+                              movie, any of its jobs -- are numbered against each
+                              other; a job with no such sibling gets no "Attempt"
+                              framing at all, just its own episode(s). */}
+                          {entry.attemptNumber != null
+                            ? `Attempt ${entry.attemptNumber}${formatEpisodeCodes(entry.episodeCodes) ? ` · ${formatEpisodeCodes(entry.episodeCodes)}` : ''}`
+                            : (formatEpisodeCodes(entry.episodeCodes) ?? 'Download')}
                         </span>
                         <span className="shrink-0 text-fog-500">{OUTCOME[entry.outcome].label}</span>
                       </div>

@@ -77,6 +77,7 @@ describe('queue', () => {
             trackedDownloadStatus: 'ok',
             downloadClient: 'SABnzbd',
             quality: { quality: { name: 'Bluray-1080p' } },
+            downloadId: 'dl-abc123',
           },
         ],
       }),
@@ -89,12 +90,14 @@ describe('queue', () => {
     assert.equal(row.movieId, 1);
     assert.equal(row.titleSlug, 'blue-current-2026');
     assert.equal(row.quality, 'Bluray-1080p');
+    assert.equal(row.downloadId, 'dl-abc123');
   });
 
-  test('quality is null, not undefined, when the queue record has none', async () => {
+  test('quality and downloadId are null, not undefined, when the queue record has neither', async () => {
     mockFetch(jsonRes({ records: [{ movieId: 1, movie: { title: 'Blue Current' }, size: 100, sizeleft: 50 }] }));
     const [row] = await radarr.queue(cfg);
     assert.equal(row.quality, null);
+    assert.equal(row.downloadId, null);
   });
 
   test('drops a record with no movieId rather than showing an unidentifiable row', async () => {
