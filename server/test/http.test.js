@@ -93,20 +93,37 @@ describe('readCappedBody', () => {
     assert.equal(buf.toString('utf8'), 'ok');
   });
 
-  test('rejects on the declared header alone, without reading the body', async () => {
-    let read = false;
+  test('rejects on the declared header alone, without ever touching the body stream', async () => {
     const res = fakeRes({ headers: { 'content-length': '2000' }, body: 'small' });
-    const origArrayBuffer = res.arrayBuffer;
-    res.arrayBuffer = async () => {
-      read = true;
-      return origArrayBuffer();
-    };
     await assert.rejects(() => readCappedBody(res, 1024), UpstreamError);
-    assert.equal(read, false, 'should reject from the declared Content-Length before ever reading the body');
+    assert.equal(res.body.locked, false, 'should reject from the declared Content-Length before ever reading the body');
   });
 
   test('rejects on actual size when the header under-reports it', async () => {
     await assert.rejects(() => readCappedBody(fakeRes({ headers: { 'content-length': '1' }, body: 'x'.repeat(2000) }), 1024), UpstreamError);
+  });
+
+  test('rejects a streamed body that only crosses the cap partway through, without buffering it all first', async () => {
+    // No honest content-length at all (the realistic case for a chunked
+    // upstream) -- each chunk is under the cap on its own, only the running
+    // total crosses it, and only after several chunks have already gone by.
+    const chunks = Array.from({ length: 5 }, () => 'x'.repeat(300));
+    await assert.rejects(() => readCappedBody(fakeRes({ chunks }), 1024), UpstreamError);
+  });
+
+  test('rejects a body that sends its headers promptly but then drips too slowly', async () => {
+    const res = fakeRes({ chunks: ['a', 'b', 'c'], delayMs: 50 });
+    await assert.rejects(() => readCappedBody(res, 1024, 20), (err) => {
+      assert.ok(err instanceof UpstreamError);
+      assert.match(err.message, /took too long/);
+      return true;
+    });
+  });
+
+  test('a slow but ultimately-in-time body still completes normally', async () => {
+    const res = fakeRes({ chunks: ['a', 'b', 'c'], delayMs: 5 });
+    const buf = await readCappedBody(res, 1024, 500);
+    assert.equal(buf.toString('utf8'), 'abc');
   });
 });
 

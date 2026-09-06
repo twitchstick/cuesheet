@@ -1,13 +1,30 @@
 /** Shared fetch-mocking helpers for server-side tests. */
 
-/** A fetch Response stand-in with full control over headers vs. actual body size. */
-export function fakeRes({ ok = true, status = 200, headers = {}, body = '' } = {}) {
+/**
+ * A fetch Response stand-in with full control over headers vs. actual body
+ * size. `body` carries a real, async-iterable ReadableStream (the same
+ * shape readCappedBody() reads from a genuine fetch() response), optionally
+ * split into `chunks` to simulate a slow-drip/streamed body -- a single
+ * chunk (the whole thing at once) otherwise.
+ */
+export function fakeRes({ ok = true, status = 200, headers = {}, body = '', chunks, delayMs = 0 } = {}) {
   const map = new Map(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), String(v)]));
   const bytes = new TextEncoder().encode(body);
+  const parts = chunks ? chunks.map((c) => (typeof c === 'string' ? new TextEncoder().encode(c) : c)) : [bytes];
+  const stream = new ReadableStream({
+    async start(controller) {
+      for (const part of parts) {
+        if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+        controller.enqueue(part);
+      }
+      controller.close();
+    },
+  });
   return {
     ok,
     status,
     headers: { get: (k) => map.get(k.toLowerCase()) ?? null },
+    body: stream,
     arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
     text: async () => body,
   };

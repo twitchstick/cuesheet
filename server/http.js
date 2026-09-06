@@ -106,13 +106,54 @@ export function fetchRaw(url, options = {}) {
   return request(url, { ...options, timeoutMs: options.timeoutMs ?? 15_000 });
 }
 
-/** Read a response body, refusing anything implausibly large for a poster. */
-export async function readCappedBody(res, limit = MAX_BODY_BYTES) {
+/**
+ * Read a response body, refusing anything implausibly large for a poster.
+ *
+ * The Content-Length pre-check below is only a courtesy -- a chunked or
+ * dishonest upstream has no obligation to send one at all, and
+ * res.arrayBuffer() would happily buffer an unbounded body in full before
+ * any size check ran. So the real enforcement streams the body in chunks
+ * and aborts as soon as the running total crosses the limit, never holding
+ * more than one oversized response in memory at a time. It also gives the
+ * body-reading phase its own timeout: request()'s AbortController is torn
+ * down the moment fetch() resolves with headers, so without this, a
+ * connection that answers instantly but then drips its body forever would
+ * hang here indefinitely.
+ */
+export async function readCappedBody(res, limit = MAX_BODY_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const declared = Number(res.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > limit) throw new UpstreamError('Upstream response is too large', 502);
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.byteLength > limit) throw new UpstreamError('Upstream response is too large', 502);
-  return buf;
+  if (!res.body) return Buffer.alloc(0);
+
+  const readAll = (async () => {
+    const chunks = [];
+    let total = 0;
+    for await (const chunk of res.body) {
+      total += chunk.length;
+      if (total > limit) throw new UpstreamError('Upstream response is too large', 502);
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  })();
+  // If the timeout below wins the race, readAll keeps running in the
+  // background and will eventually reject on its own (cancel() rejects an
+  // in-flight read) -- swallow that here so it never surfaces as an
+  // unhandled rejection.
+  readAll.catch(() => {});
+
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new UpstreamError(`Upstream took too long sending its response body (over ${timeoutMs}ms)`, 502)), timeoutMs);
+  });
+  try {
+    return await Promise.race([readAll, timeout]);
+  } finally {
+    clearTimeout(timer);
+    // Best-effort cleanup -- if readAll already finished or threw, the
+    // stream may already be closed, and cancel() on a locked/closed stream
+    // throws; neither case is worth surfacing.
+    await res.body.cancel?.().catch(() => {});
+  }
 }
 
 function safeHost(url) {
