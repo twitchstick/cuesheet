@@ -14,9 +14,49 @@ function siteList(payload) {
       id: String(site?.siteId ?? ''),
       name: String(site?.meta?.desc || site?.meta?.name || 'UniFi site'),
       hostId: String(site?.hostId ?? ''),
+      internalReference: String(site?.meta?.name ?? ''),
       statistics: site?.statistics ?? {},
     }))
     .filter((site) => site.id);
+}
+
+const connectorRoot = (url, hostId) => `${clean(url)}/v1/connector/consoles/${encodeURIComponent(hostId)}/network/integration`;
+
+/** Discover the official real-time statistics endpoint for the chosen site's gateway. */
+export async function liveTarget({ url, apiKey, siteId }) {
+  const availableSites = await sites({ url, apiKey });
+  if (!availableSites.length) throw new Error('No UniFi sites are available to this API key');
+  const selected = availableSites.find((site) => site.id === siteId) ?? availableSites[0];
+  if (!selected.hostId) throw new Error('UniFi did not report a console for this site');
+
+  const root = connectorRoot(url, selected.hostId);
+  const requestHeaders = headers(apiKey);
+  const localSitesPayload = await fetchJson(`${root}/v1/sites?limit=200`, { headers: requestHeaders, timeoutMs: 10_000 });
+  const localSites = Array.isArray(localSitesPayload?.data) ? localSitesPayload.data : [];
+  const localSite = localSites.find((site) => site?.internalReference === selected.internalReference) ?? localSites[0];
+  if (!localSite?.id) throw new Error('No local Network site is available for this UniFi console');
+
+  const devicesPayload = await fetchJson(`${root}/v1/sites/${encodeURIComponent(localSite.id)}/devices?limit=200`, { headers: requestHeaders, timeoutMs: 10_000 });
+  const devices = Array.isArray(devicesPayload?.data) ? devicesPayload.data : [];
+  const gateways = devices.filter((device) => Array.isArray(device?.features) && device.features.includes('gateway'));
+  const gateway = gateways.find((device) => device?.state === 'ONLINE') ?? gateways[0];
+  if (!gateway?.id) throw new Error('No UniFi gateway was found at this site');
+
+  return {
+    url: `${root}/v1/sites/${encodeURIComponent(localSite.id)}/devices/${encodeURIComponent(gateway.id)}/statistics/latest`,
+    name: String(gateway.name || gateway.model || 'UniFi gateway'),
+  };
+}
+
+/** The Network API reports current gateway uplink rates in bits per second. */
+export async function liveStats({ apiKey }, target) {
+  const payload = await fetchJson(target.url, { headers: headers(apiKey), timeoutMs: 8_000 });
+  return {
+    gateway: target.name,
+    downloadKbps: finite(payload?.uplink?.rxRateBps) === null ? null : finite(payload.uplink.rxRateBps) / 1000,
+    uploadKbps: finite(payload?.uplink?.txRateBps) === null ? null : finite(payload.uplink.txRateBps) / 1000,
+    observedAt: payload?.lastHeartbeatAt ?? new Date().toISOString(),
+  };
 }
 
 export async function sites({ url, apiKey }) {

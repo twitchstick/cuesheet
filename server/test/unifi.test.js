@@ -1,6 +1,6 @@
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { networkStats, probe } from '../services/unifi.js';
+import { liveStats, liveTarget, networkStats, probe } from '../services/unifi.js';
 import { jsonRes, mockFetch, restoreFetch } from './helpers.js';
 
 const cfg = { url: 'https://api.ui.com', apiKey: 'ui-key', siteId: 'site-2' };
@@ -9,7 +9,7 @@ afterEach(restoreFetch);
 const sites = {
   data: [
     { siteId: 'site-1', meta: { desc: 'Office' }, statistics: { counts: { offlineGatewayDevice: 0 } } },
-    { siteId: 'site-2', meta: { desc: 'Home' }, statistics: { percentages: { wanUptime: 100 } } },
+    { siteId: 'site-2', hostId: 'udm-pro', meta: { desc: 'Home', name: 'default' }, statistics: { percentages: { wanUptime: 100 } } },
   ],
 };
 
@@ -59,5 +59,32 @@ describe('UniFi network statistics', () => {
     assert.equal(result.site.id, 'site-1');
     assert.equal(result.online, false);
     assert.equal(result.downloadKbps, 0);
+  });
+});
+
+describe('UniFi live statistics', () => {
+  test('discovers the selected console site and its gateway', async () => {
+    mockFetch([
+      jsonRes(sites),
+      jsonRes({ data: [{ id: 'local-default', internalReference: 'default', name: 'Default' }] }),
+      jsonRes({ data: [
+        { id: 'ap-1', name: 'AP', features: ['accessPoint'], state: 'ONLINE' },
+        { id: 'gateway-1', name: 'UDM Pro', features: ['gateway', 'switching'], state: 'ONLINE' },
+      ] }),
+    ]);
+    const target = await liveTarget(cfg);
+    assert.equal(target.name, 'UDM Pro');
+    assert.match(target.url, /connector\/consoles\/udm-pro\/network\/integration\/v1\/sites\/local-default\/devices\/gateway-1\/statistics\/latest$/);
+  });
+
+  test('converts real-time uplink bits per second to the dashboard kbps unit', async () => {
+    mockFetch(jsonRes({ uplink: { rxRateBps: 42_600_000, txRateBps: 5_250_000 }, lastHeartbeatAt: '2026-09-07T12:00:00Z' }));
+    const result = await liveStats(cfg, { url: 'https://api.ui.com/live', name: 'UDM Pro' });
+    assert.deepEqual(result, {
+      gateway: 'UDM Pro',
+      downloadKbps: 42_600,
+      uploadKbps: 5_250,
+      observedAt: '2026-09-07T12:00:00Z',
+    });
   });
 });

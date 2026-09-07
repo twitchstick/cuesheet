@@ -243,12 +243,21 @@ export const sabnzbdRoutes = {
 
 export const unifiRoutes = {
   'GET /v1/sites': {
-    body: { data: [{ siteId: 'home-site', hostId: 'udm-pro', meta: { desc: 'Home' }, statistics: { counts: { offlineGatewayDevice: 0 } } }] },
+    body: { data: [{ siteId: 'home-site', hostId: 'udm-pro', meta: { desc: 'Home', name: 'default' }, statistics: { counts: { offlineGatewayDevice: 0 } } }] },
   },
   'GET /ea/isp-metrics/5m': {
     body: { data: [{ siteId: 'home-site', periods: [{ metricTime: '2026-09-07T12:00:00Z', data: { wan: { download_kbps: 18400, upload_kbps: 3200, uptime: 100 } } }] }] },
   },
   'GET /ea/isp-metrics/1h': {
     body: { data: [{ siteId: 'home-site', periods: [{ metricTime: '2026-09-07T11:00:00Z', data: { wan: { download_kbps: 8000, upload_kbps: 1000 } } }] }] },
+  },
+  'GET /v1/connector/consoles/udm-pro/network/integration/v1/sites': {
+    body: { data: [{ id: 'local-default', internalReference: 'default', name: 'Default' }] },
+  },
+  'GET /v1/connector/consoles/udm-pro/network/integration/v1/sites/local-default/devices': {
+    body: { data: [{ id: 'gateway-1', name: 'UDM Pro', model: 'UDMPRO', state: 'ONLINE', features: ['gateway', 'switching'], interfaces: ['ports'] }] },
+  },
+  'GET /v1/connector/consoles/udm-pro/network/integration/v1/sites/local-default/devices/gateway-1/statistics/latest': {
+    body: { uplink: { rxRateBps: 42_600_000, txRateBps: 5_250_000 }, lastHeartbeatAt: '2026-09-07T12:00:00Z', interfaces: {} },
   },
 };

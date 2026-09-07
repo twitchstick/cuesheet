@@ -82,6 +82,7 @@ export default function App() {
     d.monthCalendar.refresh();
     d.requests.refresh();
     d.network.refresh();
+    d.networkLive.refresh();
     navigate('overview');
   };
 
@@ -99,6 +100,7 @@ export default function App() {
     d.requests.refresh();
     d.links.refresh();
     d.network.refresh();
+    d.networkLive.refresh();
   };
 
   const handleLogout = () => {
@@ -224,7 +226,7 @@ export default function App() {
           {view === 'overview' && (
             <>
               <QuickLinks items={d.links.data?.items ?? null} loading={d.links.loading} onChange={d.links.refresh} notify={notify} />
-              {d.hasUnifi && <NetworkStatus data={d.network.data} error={d.network.error} loading={d.network.loading} />}
+              {d.hasUnifi && <NetworkStatus data={d.network.data} live={d.networkLive.data} error={d.network.error} liveError={d.networkLive.error} loading={d.network.loading} />}
               {d.hasMediaServer && <StreamGrid streams={d.streams.data?.items ?? null} errors={streamErrors} loading={d.streams.loading} onSelect={openStream} />}
               {d.hasMediaServer && (
                 <RecentlyAdded

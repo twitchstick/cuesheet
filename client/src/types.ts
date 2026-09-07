@@ -179,6 +179,13 @@ export interface NetworkStats {
   };
 }
 
+export interface NetworkLiveStats {
+  gateway: string;
+  downloadKbps: number | null;
+  uploadKbps: number | null;
+  observedAt: string;
+}
+
 export interface DownloadItem {
   id: string;
   source: 'radarr' | 'sonarr';

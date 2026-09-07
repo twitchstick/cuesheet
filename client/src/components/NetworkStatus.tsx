@@ -1,9 +1,11 @@
 import { Activity, ArrowDown, ArrowUp, CircleAlert, Wifi, WifiOff } from 'lucide-react';
-import type { NetworkStats } from '../types';
+import type { NetworkLiveStats, NetworkStats } from '../types';
 
 interface Props {
   data: NetworkStats | null;
+  live: NetworkLiveStats | null;
   error: string | null;
+  liveError: string | null;
   loading: boolean;
 }
 
@@ -27,8 +29,11 @@ const bytes = (value: number) => {
   return `${amount.toFixed(digits)} ${units[unit]}`;
 };
 
-export default function NetworkStatus({ data, error, loading }: Props) {
+export default function NetworkStatus({ data, live, error, liveError, loading }: Props) {
   const online = data?.online;
+  const liveActive = Boolean(live && !liveError);
+  const download = liveActive ? live?.downloadKbps ?? null : data?.downloadKbps ?? null;
+  const upload = liveActive ? live?.uploadKbps ?? null : data?.uploadKbps ?? null;
   return (
     <section className="animate-rise">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -50,8 +55,8 @@ export default function NetworkStatus({ data, error, loading }: Props) {
 
       <div className="card overflow-hidden">
         <div className="grid grid-cols-2 divide-x divide-line">
-          <Metric icon={<ArrowDown className="h-4 w-4" />} label="Download" value={loading && !data ? 'Checking…' : rate(data?.downloadKbps ?? null)} tone="text-glow" />
-          <Metric icon={<ArrowUp className="h-4 w-4" />} label="Upload" value={loading && !data ? 'Checking…' : rate(data?.uploadKbps ?? null)} tone="text-accent-300" />
+          <Metric icon={<ArrowDown className="h-4 w-4" />} label="Download" value={loading && !data && !live ? 'Checking…' : rate(download)} tone="text-glow" live={liveActive} />
+          <Metric icon={<ArrowUp className="h-4 w-4" />} label="Upload" value={loading && !data && !live ? 'Checking…' : rate(upload)} tone="text-accent-300" live={liveActive} />
         </div>
         <div className="border-t border-line bg-night-900/35 px-4 py-3 sm:px-5">
           <div className="mb-2 flex items-center gap-2">
@@ -65,20 +70,24 @@ export default function NetworkStatus({ data, error, loading }: Props) {
           {data && data.transfer.sampleCount < 150 && (
             <p className="mt-2 text-[11px] text-fog-500">Based on {data.transfer.sampleCount} available hourly samples.</p>
           )}
+          {liveError && <p className="mt-2 text-[11px] text-amber-300">Live feed unavailable; showing the latest five-minute average.</p>}
         </div>
       </div>
     </section>
   );
 }
 
-function Metric({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone: string }) {
+function Metric({ icon, label, value, tone, live }: { icon: React.ReactNode; label: string; value: string; tone: string; live: boolean }) {
   return (
     <div className="px-4 py-5 sm:px-5">
       <div className={`mb-2 flex items-center gap-2 ${tone}`}>
         {icon}<span className="label">{label}</span>
       </div>
       <p className="font-mono text-2xl font-semibold tabular-nums sm:text-3xl">{value}</p>
-      <p className="mt-1 text-[11px] text-fog-500">Latest 5-minute average</p>
+      <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-fog-500">
+        {live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />}
+        {live ? 'Live · refreshes every 3 seconds' : 'Latest 5-minute average'}
+      </p>
     </div>
   );
 }

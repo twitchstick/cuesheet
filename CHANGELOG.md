@@ -10,9 +10,11 @@ for fixes.
 ### Added
 
 - **UniFi network pulse.** Connect an official UniFi Site Manager API key
-  to show current WAN download/upload rates, internet online/offline state,
+  to show live WAN download/upload rates, internet online/offline state,
   and seven-day download/upload transfer totals on the overview. Accounts
-  with multiple sites can choose which gateway Cuesheet follows.
+  with multiple sites can choose which gateway Cuesheet follows. The live
+  meter reads the gateway's official real-time device statistics every three
+  seconds and falls back to the latest five-minute sample when unavailable.
 
 ## [2.8.0] — 2026-09-04
 

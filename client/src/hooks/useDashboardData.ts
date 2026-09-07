@@ -69,6 +69,7 @@ export function useDashboardData(view: View) {
   // UniFi's freshest public metric is a five-minute average, so a one-minute
   // dashboard poll stays responsive without needlessly burning API quota.
   const network = usePoll(api.network, 60_000, hasUnifi);
+  const networkLive = usePoll(api.networkLive, 3_000, hasUnifi);
 
   // Sidebar service health: green when the last call succeeded, amber when it errored.
   const health = useMemo<ServiceHealth[]>(() => {
@@ -119,7 +120,7 @@ export function useDashboardData(view: View) {
   return {
     config, setConfig, configError, setup, setSetup, now, today,
     hasMediaServer, hasCalendar, hasQueue, hasSeerr, hasUnifi,
-    streams, recent, calendar, monthCalendar, queue, requests, links, network,
+    streams, recent, calendar, monthCalendar, queue, requests, links, network, networkLive,
     weekOffset, setWeekOffset, weekStart, month, setMonth,
     health, available, nothingConfigured, downloadItems, recentlyRequested,
   };

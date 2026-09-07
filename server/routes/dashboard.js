@@ -25,6 +25,19 @@ router.get('/network', async (_req, res, next) => {
   }
 });
 
+router.get('/network/live', async (_req, res, next) => {
+  if (!config.unifi.enabled) return res.status(404).json({ error: 'UniFi is not configured' });
+  try {
+    // Discovery takes three calls but the target barely changes; settings
+    // saves invalidate it. The final rate read is shared briefly between all
+    // open dashboards, keeping a live feel without multiplying API traffic.
+    const target = await cached('unifi-live-target', 10 * 60_000, () => unifi.liveTarget(config.unifi));
+    res.json(await cached('unifi-live', 1_500, () => unifi.liveStats(config.unifi, target)));
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** Run one loader per enabled service and merge the results, reporting per-service errors. */
 async function gather(tasks) {
   const settled = await Promise.allSettled(tasks.map(([, fn]) => fn()));

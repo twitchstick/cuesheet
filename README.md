@@ -107,7 +107,7 @@ an update.
 
 These names are the environment variables, which exist for docker compose users. On Unraid you enter the same values in the setup wizard instead.
 
-The UniFi card uses Ubiquiti's official Site Manager API at `https://api.ui.com`. If the key can see more than one site, test the connection in Cuesheet and select the UDM Pro site from the list. The seven-day transfer figures are calculated from UniFi's available hourly WAN-rate samples, so a partial history is labeled in the card.
+The UniFi card uses Ubiquiti's official Site Manager and Network APIs through `https://api.ui.com`. If the key can see more than one site, test the connection in Cuesheet and select the UDM Pro site from the list. Live download/upload rates refresh from the gateway's real-time statistics every three seconds. The seven-day transfer figures are calculated from UniFi's available hourly WAN-rate samples, so a partial history is labeled in the card.
 
 Use LAN addresses on Apollo (for example `http://192.168.1.10:32400`), or `http://<container-name>:<port>` if the containers share a custom Docker network.
 

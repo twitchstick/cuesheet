@@ -12,7 +12,8 @@ test('loads the dashboard with data from every configured service', async ({ pag
   // through the real proxy route, not just that the shell rendered.
   await expect(page.getByText('Nova')).toBeVisible();
   await expect(page.getByText('Internet online')).toBeVisible();
-  await expect(page.getByText('18 Mbps')).toBeVisible();
+  await expect(page.getByText('43 Mbps')).toBeVisible();
+  await expect(page.getByText('Live · refreshes every 3 seconds').first()).toBeVisible();
   await expect(page.getByText('Data transfer · last 7 days')).toBeVisible();
 });
 

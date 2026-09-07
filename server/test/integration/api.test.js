@@ -148,6 +148,14 @@ describe('/api/network (UniFi)', () => {
     assert.equal(body.downloadKbps, 18400);
     assert.equal(body.transfer.downloadBytes, 3_600_000_000);
   });
+
+  test('returns live gateway rates through the Cloud Connector route', async () => {
+    const { status, body } = await get('/api/network/live');
+    assert.equal(status, 200);
+    assert.equal(body.gateway, 'UDM Pro');
+    assert.equal(body.downloadKbps, 42_600);
+    assert.equal(body.uploadKbps, 5_250);
+  });
 });
 
 describe('cross-site write protection', () => {
