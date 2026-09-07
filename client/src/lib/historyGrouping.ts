@@ -55,6 +55,22 @@ function clusterKey(episodeCodes: string[]): string {
   return episodeCodes.length === 0 ? '\0movie' : [...episodeCodes].sort().join(',');
 }
 
+/** Each episode must finish before the whole pack is imported. Use the
+ * newest evidence for each subject, so an earlier failure followed by a
+ * successful import is resolved rather than permanently marked mixed. */
+function jobOutcome(rows: HistoryRow[], active: boolean): AttemptOutcome {
+  const latest = new Map<string, HistoryRow>();
+  for (const row of [...rows].sort((a, b) => b.at - a.at)) {
+    const subject = row.episodeCode ?? '\0job';
+    if (!latest.has(subject)) latest.set(subject, row);
+  }
+  const states = [...latest.values()].map((row) => row.type);
+  if (states.every((state) => state === 'imported')) return 'imported';
+  if (states.some((state) => state === 'imported')) return 'mixed';
+  if (states.every((state) => state === 'failed')) return 'failed';
+  return active ? 'pending' : 'unknown';
+}
+
 /**
  * Rows sharing a downloadId are the same Radarr/Sonarr download job -- a
  * failure and its eventual re-grab/import, not two unrelated events -- so
@@ -107,10 +123,7 @@ export function groupHistory(rows: HistoryRow[], activeDownloadId: string | null
   }
 
   const attempts: AttemptEntry[] = [...byDownload.entries()].map(([downloadId, groupRows]) => {
-    const hasImported = groupRows.some((r) => r.type === 'imported');
-    const hasFailed = groupRows.some((r) => r.type === 'failed');
-    const outcome: AttemptOutcome =
-      hasImported && hasFailed ? 'mixed' : hasImported ? 'imported' : hasFailed ? 'failed' : downloadId === activeDownloadId ? 'pending' : 'unknown';
+    const outcome = jobOutcome(groupRows, downloadId === activeDownloadId);
     return {
       kind: 'attempt',
       downloadId,

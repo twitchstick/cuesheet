@@ -122,37 +122,36 @@ export function fetchRaw(url, options = {}) {
  */
 export async function readCappedBody(res, limit = MAX_BODY_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const declared = Number(res.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > limit) throw new UpstreamError('Upstream response is too large', 502);
+  if (Number.isFinite(declared) && declared > limit) {
+    res.body?.cancel().catch(() => {});
+    throw new UpstreamError('Upstream response is too large', 502);
+  }
   if (!res.body) return Buffer.alloc(0);
-
-  const readAll = (async () => {
-    const chunks = [];
-    let total = 0;
-    for await (const chunk of res.body) {
-      total += chunk.length;
-      if (total > limit) throw new UpstreamError('Upstream response is too large', 502);
-      chunks.push(chunk);
-    }
-    return Buffer.concat(chunks);
-  })();
-  // If the timeout below wins the race, readAll keeps running in the
-  // background and will eventually reject on its own (cancel() rejects an
-  // in-flight read) -- swallow that here so it never surfaces as an
-  // unhandled rejection.
-  readAll.catch(() => {});
-
+  // Own the reader: cancelling the stream itself while a reader holds its
+  // lock rejects without stopping the pending read.
+  const reader = res.body.getReader();
   let timer;
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new UpstreamError(`Upstream took too long sending its response body (over ${timeoutMs}ms)`, 502)), timeoutMs);
   });
   try {
-    return await Promise.race([readAll, timeout]);
+    const chunks = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await Promise.race([reader.read(), timeout]);
+      if (done) return Buffer.concat(chunks, total);
+      total += value.byteLength;
+      if (total > limit) throw new UpstreamError('Upstream response is too large', 502);
+      chunks.push(value);
+    }
+  } catch (err) {
+    // Cancellation closes pending reads immediately. Do not wait for an
+    // upstream's cancellation hook, which could itself never settle.
+    reader.cancel(err).catch(() => {});
+    throw err;
   } finally {
     clearTimeout(timer);
-    // Best-effort cleanup -- if readAll already finished or threw, the
-    // stream may already be closed, and cancel() on a locked/closed stream
-    // throws; neither case is worth surfacing.
-    await res.body.cancel?.().catch(() => {});
+    reader.releaseLock();
   }
 }
 

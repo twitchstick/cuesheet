@@ -60,10 +60,11 @@ export default function HistoryStrip({ item, defaultOpen = false }: Props) {
   // same title can leave stage reading 'downloading' the entire time (see
   // lifecycle.js -- every queue status but 'importing' collapses onto that
   // one stage), so stage alone would miss exactly the transition this
-  // exists to catch. Compared by value against a ref, not made an effect
-  // dependency directly -- `item` is a fresh object every poll regardless
-  // of whether either actually changed, and this must only fire on a real move.
-  const lastSignal = useRef(`${item.stage}:${item.downloadStatus ?? ''}`);
+  // exists to catch. The job id also catches a failure and replacement
+  // between polls that both report downloading. Compare these values, since
+  // the item object itself changes on every poll.
+  const signal = `${item.stage}:${item.downloadStatus ?? ''}:${item.activeDownloadId ?? ''}`;
+  const lastSignal = useRef(signal);
   // Set alongside clearing events/error above, and read (then reset) by the
   // fetch effect below -- tells the server this refetch is chasing a real
   // change, not an ordinary open, so it's worth skipping that route's own
@@ -71,13 +72,12 @@ export default function HistoryStrip({ item, defaultOpen = false }: Props) {
   // as the one that missed the change in the first place.
   const forceFresh = useRef(false);
   useEffect(() => {
-    const signal = `${item.stage}:${item.downloadStatus ?? ''}`;
     if (lastSignal.current === signal) return;
     lastSignal.current = signal;
     forceFresh.current = true;
     setEvents(null);
     setError(null);
-  }, [item.stage, item.downloadStatus]);
+  }, [signal]);
 
   // `item` is a new object every poll (the whole /api/lifecycle list is
   // rebuilt each refresh), so this re-runs often once `open` -- harmless,

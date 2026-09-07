@@ -11,14 +11,17 @@ export function fakeRes({ ok = true, status = 200, headers = {}, body = '', chun
   const map = new Map(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), String(v)]));
   const bytes = new TextEncoder().encode(body);
   const parts = chunks ? chunks.map((c) => (typeof c === 'string' ? new TextEncoder().encode(c) : c)) : [bytes];
+  let cancelled = false;
   const stream = new ReadableStream({
     async start(controller) {
       for (const part of parts) {
         if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+        if (cancelled) return;
         controller.enqueue(part);
       }
       controller.close();
     },
+    cancel() { cancelled = true; },
   });
   return {
     ok,

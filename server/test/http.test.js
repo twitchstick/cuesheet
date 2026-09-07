@@ -88,6 +88,38 @@ describe('fetchJson body cap', () => {
 });
 
 describe('readCappedBody', () => {
+  test('timeout cancels a pending read and releases its lock even if cancellation never settles', async () => {
+    let cancelled = false;
+    const body = new ReadableStream({
+      cancel() {
+        cancelled = true;
+        return new Promise(() => {});
+      },
+    });
+    await assert.rejects(() => readCappedBody(new Response(body), 1024, 10), /took too long/);
+    assert.equal(cancelled, true);
+    assert.equal(body.locked, false);
+  });
+
+  test('an oversized chunk cancels its producer and releases the reader', async () => {
+    let cancelled = false;
+    const body = new ReadableStream({
+      start(controller) { controller.enqueue(new Uint8Array(1025)); },
+      cancel() { cancelled = true; },
+    });
+    await assert.rejects(() => readCappedBody(new Response(body), 1024), /too large/);
+    assert.equal(cancelled, true);
+    assert.equal(body.locked, false);
+  });
+
+  test('rejecting Content-Length also cancels the unconsumed body', async () => {
+    let cancelled = false;
+    const body = new ReadableStream({ cancel() { cancelled = true; } });
+    await assert.rejects(() => readCappedBody(new Response(body, { headers: { 'content-length': '2000' } }), 1024), /too large/);
+    assert.equal(cancelled, true);
+    assert.equal(body.locked, false);
+  });
+
   test('accepts a body under the limit', async () => {
     const buf = await readCappedBody(fakeRes({ body: 'ok' }), 1024);
     assert.equal(buf.toString('utf8'), 'ok');
