@@ -12,12 +12,12 @@ interface Props {
   notify: (message: string, tone?: 'ok' | 'error') => void;
 }
 
-type ServiceDraft = { url: string; secret: string; secretSet: boolean; userId: string };
+type ServiceDraft = { url: string; secret: string; secretSet: boolean; userId: string; siteId: string };
 type Draft = { general: Settings['general'] } & Record<ServiceName, ServiceDraft>;
 
 const SERVICE_META: Record<
   ServiceName,
-  { label: string; blurb: string; urlExample: string; secretLabel: string; secretHelp: string; userLabel?: string; userHelp?: string }
+  { label: string; blurb: string; urlExample: string; secretLabel: string; secretHelp: string; userLabel?: string; userHelp?: string; siteLabel?: string; siteHelp?: string }
 > = {
   plex: {
     label: 'Plex',
@@ -53,6 +53,15 @@ const SERVICE_META: Record<
     secretLabel: 'API key',
     secretHelp: 'SABnzbd → Config → General → API Key',
   },
+  unifi: {
+    label: 'UniFi',
+    blurb: 'WAN speed, seven-day transfer and internet health',
+    urlExample: 'https://api.ui.com',
+    secretLabel: 'Site Manager API key',
+    secretHelp: 'UniFi Site Manager → Settings → API Keys → Create New API Key',
+    siteLabel: 'Site (optional)',
+    siteHelp: 'Test the connection to choose a site. The first available site is used when blank.',
+  },
 };
 
 const STEPS: { id: string; title: string; caption: string; services: ServiceName[] }[] = [
@@ -60,18 +69,20 @@ const STEPS: { id: string; title: string; caption: string; services: ServiceName
   { id: 'media', title: 'Media servers', caption: 'Plex and Jellyfin', services: ['plex', 'jellyfin'] },
   { id: 'library', title: 'Library', caption: 'Radarr, Sonarr and SABnzbd', services: ['radarr', 'sonarr', 'sabnzbd'] },
   { id: 'requests', title: 'Requests', caption: 'Overseerr or Jellyseerr', services: ['seerr'] },
+  { id: 'network', title: 'Network', caption: 'UniFi internet health', services: ['unifi'] },
   { id: 'security', title: 'Security', caption: 'Optional admin password', services: [] },
   { id: 'review', title: 'Review', caption: 'Check and save', services: [] },
 ];
 
 const fromSettings = (s: Settings): Draft => ({
   general: { ...s.general },
-  plex: { url: s.plex.url, secret: '', secretSet: Boolean(s.plex.tokenSet), userId: '' },
-  jellyfin: { url: s.jellyfin.url, secret: '', secretSet: Boolean(s.jellyfin.apiKeySet), userId: s.jellyfin.userId ?? '' },
-  radarr: { url: s.radarr.url, secret: '', secretSet: Boolean(s.radarr.apiKeySet), userId: '' },
-  sonarr: { url: s.sonarr.url, secret: '', secretSet: Boolean(s.sonarr.apiKeySet), userId: '' },
-  seerr: { url: s.seerr.url, secret: '', secretSet: Boolean(s.seerr.apiKeySet), userId: s.seerr.userId ?? '' },
-  sabnzbd: { url: s.sabnzbd.url, secret: '', secretSet: Boolean(s.sabnzbd.apiKeySet), userId: '' },
+  plex: { url: s.plex.url, secret: '', secretSet: Boolean(s.plex.tokenSet), userId: '', siteId: '' },
+  jellyfin: { url: s.jellyfin.url, secret: '', secretSet: Boolean(s.jellyfin.apiKeySet), userId: s.jellyfin.userId ?? '', siteId: '' },
+  radarr: { url: s.radarr.url, secret: '', secretSet: Boolean(s.radarr.apiKeySet), userId: '', siteId: '' },
+  sonarr: { url: s.sonarr.url, secret: '', secretSet: Boolean(s.sonarr.apiKeySet), userId: '', siteId: '' },
+  seerr: { url: s.seerr.url, secret: '', secretSet: Boolean(s.seerr.apiKeySet), userId: s.seerr.userId ?? '', siteId: '' },
+  sabnzbd: { url: s.sabnzbd.url, secret: '', secretSet: Boolean(s.sabnzbd.apiKeySet), userId: '', siteId: '' },
+  unifi: { url: s.unifi.url || 'https://api.ui.com', secret: '', secretSet: Boolean(s.unifi.apiKeySet), userId: '', siteId: s.unifi.siteId ?? '' },
 });
 
 const secretField = (s: ServiceName) => (s === 'plex' ? 'token' : 'apiKey');
@@ -83,6 +94,7 @@ export default function SetupWizard({ firstRun, auth, onAuthChanged, onSaved, on
   const [step, setStep] = useState(0);
   const [tests, setTests] = useState<Partial<Record<ServiceName, TestResult | 'pending'>>>({});
   const [users, setUsers] = useState<Partial<Record<ServiceName, { id: string; name: string }[]>>>({});
+  const [sites, setSites] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -111,6 +123,10 @@ export default function SetupWizard({ firstRun, auth, onAuthChanged, onSaved, on
       const result = await api.testConnection({ service, url: d.url, [secretField(service)]: d.secret });
       setTests((t) => ({ ...t, [service]: result }));
       if (result.ok && result.users) setUsers((u) => ({ ...u, [service]: result.users }));
+      if (result.ok && result.sites) {
+        setSites(result.sites);
+        if (service === 'unifi' && !d.siteId && result.sites.length === 1) update('unifi', { siteId: result.sites[0].id });
+      }
     } catch (err) {
       setTests((t) => ({ ...t, [service]: { ok: false, error: err instanceof Error ? err.message : 'Test failed' } }));
     }
@@ -127,6 +143,7 @@ export default function SetupWizard({ firstRun, auth, onAuthChanged, onSaved, on
         if (d.secret.trim()) entry[secretField(s)] = d.secret.trim();
         else if (!d.url.trim()) entry[secretField(s)] = '';
         if (s === 'jellyfin' || s === 'seerr') entry.userId = d.userId;
+        if (s === 'unifi') entry.siteId = d.siteId;
         patch[s] = entry;
       }
       const { config } = await api.saveSettings(patch);
@@ -233,10 +250,11 @@ export default function SetupWizard({ firstRun, auth, onAuthChanged, onSaved, on
                   draft={draft[s]}
                   test={tests[s]}
                   users={users[s]}
+                  sites={s === 'unifi' ? sites : undefined}
                   onChange={(patch) => update(s, patch)}
                   onTest={() => test(s)}
                   onClear={() => {
-                    update(s, { url: '', secret: '', secretSet: false, userId: '' });
+                    update(s, { url: s === 'unifi' ? 'https://api.ui.com' : '', secret: '', secretSet: false, userId: '', siteId: '' });
                   }}
                 />
               ))}
@@ -431,6 +449,7 @@ function ServiceCard({
   draft,
   test,
   users,
+  sites,
   onChange,
   onTest,
   onClear,
@@ -439,6 +458,7 @@ function ServiceCard({
   draft: ServiceDraft;
   test: TestResult | 'pending' | undefined;
   users?: { id: string; name: string }[];
+  sites?: { id: string; name: string }[];
   onChange: (patch: Partial<ServiceDraft>) => void;
   onTest: () => void;
   onClear: () => void;
@@ -459,7 +479,7 @@ function ServiceCard({
             <p className="text-xs text-fog-500">{meta.blurb}</p>
           </div>
         </div>
-        {(draft.url || draft.secretSet) && (
+        {(draft.secret || draft.secretSet || (service !== 'unifi' && draft.url)) && (
           <button type="button" onClick={onClear} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-fog-500 hover:bg-white/5 hover:text-rose-300" title="Remove this connection">
             <Trash2 className="h-3.5 w-3.5" /> Remove
           </button>
@@ -499,6 +519,18 @@ function ServiceCard({
               </select>
             ) : (
               <input className={inputCls} value={draft.userId} onChange={(e) => onChange({ userId: e.target.value })} placeholder="Test the connection to pick from a list" />
+            )}
+          </Field>
+        )}
+        {meta.siteLabel && (
+          <Field label={meta.siteLabel} hint={meta.siteHelp}>
+            {sites && sites.length > 0 ? (
+              <select className={inputCls} value={draft.siteId} onChange={(e) => onChange({ siteId: e.target.value })}>
+                <option value="">First available site</option>
+                {sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
+              </select>
+            ) : (
+              <input className={inputCls} value={draft.siteId} onChange={(e) => onChange({ siteId: e.target.value })} placeholder="Test the connection to pick from a list" />
             )}
           </Field>
         )}

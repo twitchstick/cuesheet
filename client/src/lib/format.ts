@@ -72,6 +72,7 @@ export const sourceLabel: Record<string, string> = {
   sonarr: 'Sonarr',
   seerr: 'Seerr',
   sabnzbd: 'SABnzbd',
+  unifi: 'UniFi',
 };
 
 export function elapsed(ms: number): string {

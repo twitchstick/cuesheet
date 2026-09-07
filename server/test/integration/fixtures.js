@@ -240,3 +240,15 @@ export const seerrRoutes = {
 export const sabnzbdRoutes = {
   'GET /api': { body: { queue: { kbpersec: '500.00', paused: false, diskspace1: '100.00' } } },
 };
+
+export const unifiRoutes = {
+  'GET /v1/sites': {
+    body: { data: [{ siteId: 'home-site', hostId: 'udm-pro', meta: { desc: 'Home' }, statistics: { counts: { offlineGatewayDevice: 0 } } }] },
+  },
+  'GET /ea/isp-metrics/5m': {
+    body: { data: [{ siteId: 'home-site', periods: [{ metricTime: '2026-09-07T12:00:00Z', data: { wan: { download_kbps: 18400, upload_kbps: 3200, uptime: 100 } } }] }] },
+  },
+  'GET /ea/isp-metrics/1h': {
+    body: { data: [{ siteId: 'home-site', periods: [{ metricTime: '2026-09-07T11:00:00Z', data: { wan: { download_kbps: 8000, upload_kbps: 1000 } } }] }] },
+  },
+};

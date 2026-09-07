@@ -11,6 +11,9 @@ test('loads the dashboard with data from every configured service', async ({ pag
   // A live Plex session from the fixture -- proves /api/streams round-tripped
   // through the real proxy route, not just that the shell rendered.
   await expect(page.getByText('Nova')).toBeVisible();
+  await expect(page.getByText('Internet online')).toBeVisible();
+  await expect(page.getByText('18 Mbps')).toBeVisible();
+  await expect(page.getByText('Data transfer · last 7 days')).toBeVisible();
 });
 
 test('switching the week fetches the new range immediately, not on the next 15-minute poll', async ({ page }, testInfo) => {

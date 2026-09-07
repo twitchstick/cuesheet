@@ -5,6 +5,15 @@ All notable changes to Cuesheet are recorded here. Versions follow
 upgrade needs action from you, the minor when features are added, the patch
 for fixes.
 
+## Unreleased
+
+### Added
+
+- **UniFi network pulse.** Connect an official UniFi Site Manager API key
+  to show current WAN download/upload rates, internet online/offline state,
+  and seven-day download/upload transfer totals on the overview. Accounts
+  with multiple sites can choose which gateway Cuesheet follows.
+
 ## [2.8.0] — 2026-09-04
 
 ### Added

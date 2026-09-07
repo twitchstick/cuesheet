@@ -61,10 +61,10 @@ function verifyPasswordHash(candidate, stored) {
   }
 }
 
-export const SERVICES = ['plex', 'jellyfin', 'radarr', 'sonarr', 'seerr', 'sabnzbd'];
+export const SERVICES = ['plex', 'jellyfin', 'radarr', 'sonarr', 'seerr', 'sabnzbd', 'unifi'];
 /** Name of the credential field for each service. */
-export const SECRET_FIELD = { plex: 'token', jellyfin: 'apiKey', radarr: 'apiKey', sonarr: 'apiKey', seerr: 'apiKey', sabnzbd: 'apiKey' };
-const EXTRA_FIELDS = { jellyfin: ['userId'], seerr: ['userId'] };
+export const SECRET_FIELD = { plex: 'token', jellyfin: 'apiKey', radarr: 'apiKey', sonarr: 'apiKey', seerr: 'apiKey', sabnzbd: 'apiKey', unifi: 'apiKey' };
+const EXTRA_FIELDS = { jellyfin: ['userId'], seerr: ['userId'], unifi: ['siteId'] };
 
 export const DATA_DIR = path.resolve(env('DATA_DIR', 'data'));
 export const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
@@ -83,6 +83,7 @@ function envDefaults() {
     sonarr: { url: env('SONARR_URL'), apiKey: envSecret('SONARR_API_KEY') },
     seerr: { url: env('SEERR_URL'), apiKey: envSecret('SEERR_API_KEY'), userId: env('SEERR_USER_ID') },
     sabnzbd: { url: env('SABNZBD_URL'), apiKey: envSecret('SABNZBD_API_KEY') },
+    unifi: { url: env('UNIFI_API_URL', 'https://api.ui.com'), apiKey: envSecret('UNIFI_API_KEY'), siteId: env('UNIFI_SITE_ID') },
   };
 }
 
@@ -115,6 +116,7 @@ export const config = {
   sonarr: {},
   seerr: {},
   sabnzbd: {},
+  unifi: {},
   links: [],
   auth: { enabled: false, managedByEnv: false },
 };
@@ -287,7 +289,7 @@ function cleanUrl(value, label) {
   return url;
 }
 
-const LABELS = { plex: 'Plex', jellyfin: 'Jellyfin', radarr: 'Radarr', sonarr: 'Sonarr', seerr: 'Seerr' };
+const LABELS = { plex: 'Plex', jellyfin: 'Jellyfin', radarr: 'Radarr', sonarr: 'Sonarr', seerr: 'Seerr', sabnzbd: 'SABnzbd', unifi: 'UniFi' };
 const str = (v, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : undefined);
 
 /**

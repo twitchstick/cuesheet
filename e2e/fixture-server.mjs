@@ -12,7 +12,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { startUpstream } from '../server/test/integration/upstream.js';
-import { plexRoutes, jellyfinRoutes, radarrRoutes, sonarrRoutes, seerrRoutes, sabnzbdRoutes } from '../server/test/integration/fixtures.js';
+import { plexRoutes, jellyfinRoutes, radarrRoutes, sonarrRoutes, seerrRoutes, sabnzbdRoutes, unifiRoutes } from '../server/test/integration/fixtures.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT ?? '4173';
@@ -25,6 +25,7 @@ const upstreams = {
   sonarr: await startUpstream(sonarrRoutes),
   seerr: await startUpstream(seerrRoutes),
   sabnzbd: await startUpstream(sabnzbdRoutes),
+  unifi: await startUpstream(unifiRoutes),
 };
 
 process.env.DATA_DIR = dataDir;
@@ -43,6 +44,8 @@ process.env.SEERR_URL = upstreams.seerr.url;
 process.env.SEERR_API_KEY = 'seerr-key';
 process.env.SABNZBD_URL = upstreams.sabnzbd.url;
 process.env.SABNZBD_API_KEY = 'sab-key';
+process.env.UNIFI_API_URL = upstreams.unifi.url;
+process.env.UNIFI_API_KEY = 'unifi-key';
 // The whole-app gate is on for the e2e run, same as a real deployment that
 // sets one -- e2e/global.setup.ts logs in once and every other spec starts
 // from that saved session; auth.spec.ts is the one that starts logged out.

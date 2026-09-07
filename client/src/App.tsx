@@ -15,6 +15,7 @@ import MonthCalendar from './components/MonthCalendar';
 import WeekCalendar from './components/WeekCalendar';
 import MediaDetailPanel from './components/MediaDetailPanel';
 import StreamDetailPanel from './components/StreamDetailPanel';
+import NetworkStatus from './components/NetworkStatus';
 import { useDashboardData } from './hooks/useDashboardData';
 import { useAuth } from './hooks/useAuth';
 import { greeting } from './lib/format';
@@ -80,6 +81,7 @@ export default function App() {
     d.calendar.refresh();
     d.monthCalendar.refresh();
     d.requests.refresh();
+    d.network.refresh();
     navigate('overview');
   };
 
@@ -96,6 +98,7 @@ export default function App() {
     d.queue.refresh();
     d.requests.refresh();
     d.links.refresh();
+    d.network.refresh();
   };
 
   const handleLogout = () => {
@@ -221,6 +224,7 @@ export default function App() {
           {view === 'overview' && (
             <>
               <QuickLinks items={d.links.data?.items ?? null} loading={d.links.loading} onChange={d.links.refresh} notify={notify} />
+              {d.hasUnifi && <NetworkStatus data={d.network.data} error={d.network.error} loading={d.network.loading} />}
               {d.hasMediaServer && <StreamGrid streams={d.streams.data?.items ?? null} errors={streamErrors} loading={d.streams.loading} onSelect={openStream} />}
               {d.hasMediaServer && (
                 <RecentlyAdded

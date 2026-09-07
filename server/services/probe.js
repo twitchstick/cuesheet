@@ -3,6 +3,7 @@
  * { ok: true, name, version, users? } or throws with a readable message.
  */
 import { fetchJson } from '../http.js';
+import { probe as unifiProbe } from './unifi.js';
 
 const clean = (v) => String(v ?? '').trim().replace(/\/+$/, '');
 
@@ -63,4 +64,6 @@ export async function sabnzbd({ url, apiKey }) {
   return { ok: true, name: 'SABnzbd', version: data.version };
 }
 
-export const probes = { plex, jellyfin, radarr, sonarr, seerr, sabnzbd };
+export const unifi = unifiProbe;
+
+export const probes = { plex, jellyfin, radarr, sonarr, seerr, sabnzbd, unifi };

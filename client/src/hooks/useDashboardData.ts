@@ -38,6 +38,7 @@ export function useDashboardData(view: View) {
   // are conceptually distinct and may not always share that condition.
   const hasQueue = hasCalendar;
   const hasSeerr = Boolean(services?.seerr);
+  const hasUnifi = Boolean(services?.unifi);
 
   const streams = usePoll(api.streams, Math.max(5, config?.refreshSeconds ?? 15) * 1000, hasMediaServer);
   const recent = usePoll(api.recent, 5 * 60_000, hasMediaServer);
@@ -65,6 +66,9 @@ export function useDashboardData(view: View) {
   const requests = usePoll(api.lifecycle, 60_000, hasQueue || hasSeerr);
   // Rarely changes, so no live polling — the editor refreshes it after a save.
   const links = usePoll(api.links, 30 * 60_000, true);
+  // UniFi's freshest public metric is a five-minute average, so a one-minute
+  // dashboard poll stays responsive without needlessly burning API quota.
+  const network = usePoll(api.network, 60_000, hasUnifi);
 
   // Sidebar service health: green when the last call succeeded, amber when it errored.
   const health = useMemo<ServiceHealth[]>(() => {
@@ -82,8 +86,9 @@ export function useDashboardData(view: View) {
     }
     if (services.seerr) list.push({ name: 'seerr', ok: requests.data ? !requests.data.errors?.seerr : requests.error ? false : undefined });
     if (services.sabnzbd) list.push({ name: 'sabnzbd', ok: queue.data ? !queue.data.errors?.sabnzbd : undefined });
+    if (services.unifi) list.push({ name: 'unifi', ok: network.data ? true : network.error ? false : undefined });
     return list;
-  }, [services, streams.data, recent.data, calendar.data, queue.data, requests.data, requests.error]);
+  }, [services, streams.data, recent.data, calendar.data, queue.data, requests.data, requests.error, network.data, network.error]);
 
   const available = useMemo(() => {
     const set = new Set<View>(['overview', 'setup']);
@@ -94,7 +99,7 @@ export function useDashboardData(view: View) {
     return set;
   }, [hasMediaServer, hasCalendar, hasQueue, hasSeerr]);
 
-  const nothingConfigured = Boolean(config) && !hasMediaServer && !hasCalendar && !hasSeerr;
+  const nothingConfigured = Boolean(config) && !hasMediaServer && !hasCalendar && !hasSeerr && !hasUnifi;
 
   // Downloads and Requests read the same poll -- this is just the slice
   // that's actually in the queue right now, worst-off first so a failed or
@@ -113,8 +118,8 @@ export function useDashboardData(view: View) {
 
   return {
     config, setConfig, configError, setup, setSetup, now, today,
-    hasMediaServer, hasCalendar, hasQueue, hasSeerr,
-    streams, recent, calendar, monthCalendar, queue, requests, links,
+    hasMediaServer, hasCalendar, hasQueue, hasSeerr, hasUnifi,
+    streams, recent, calendar, monthCalendar, queue, requests, links, network,
     weekOffset, setWeekOffset, weekStart, month, setMonth,
     health, available, nothingConfigured, downloadItems, recentlyRequested,
   };

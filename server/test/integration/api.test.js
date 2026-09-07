@@ -20,7 +20,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { startUpstream } from './upstream.js';
-import { plexRoutes, jellyfinRoutes, radarrRoutes, sonarrRoutes, seerrRoutes, sabnzbdRoutes } from './fixtures.js';
+import { plexRoutes, jellyfinRoutes, radarrRoutes, sonarrRoutes, seerrRoutes, sabnzbdRoutes, unifiRoutes } from './fixtures.js';
 
 let dataDir;
 let upstreams;
@@ -36,6 +36,7 @@ before(async () => {
     sonarr: await startUpstream(sonarrRoutes),
     seerr: await startUpstream(seerrRoutes),
     sabnzbd: await startUpstream(sabnzbdRoutes),
+    unifi: await startUpstream(unifiRoutes),
   };
 
   process.env.DATA_DIR = dataDir;
@@ -53,6 +54,8 @@ before(async () => {
   process.env.SEERR_API_KEY = 'seerr-key';
   process.env.SABNZBD_URL = upstreams.sabnzbd.url;
   process.env.SABNZBD_API_KEY = 'sab-key';
+  process.env.UNIFI_API_URL = upstreams.unifi.url;
+  process.env.UNIFI_API_KEY = 'unifi-key';
 
   const { app } = await import('../../index.js');
   server = http.createServer(app);
@@ -104,7 +107,7 @@ describe('basic wiring', () => {
     const { body } = await get('/api/config');
     assert.equal(body.title, 'Cuesheet');
     assert.equal(body.serverName, 'Integration Apollo');
-    assert.deepEqual(body.services, { plex: true, jellyfin: true, radarr: true, sonarr: true, seerr: true, sabnzbd: true });
+    assert.deepEqual(body.services, { plex: true, jellyfin: true, radarr: true, sonarr: true, seerr: true, sabnzbd: true, unifi: true });
     assert.equal(body.seerrUrl, upstreams.seerr.url);
     // The signal trace's own deep links -- real base URLs, not proxied.
     assert.equal(body.radarrUrl, upstreams.radarr.url);
@@ -133,6 +136,17 @@ describe('basic wiring', () => {
     const { status, body } = await get('/api/does-not-exist');
     assert.equal(status, 404);
     assert.equal(body.error, 'Not found');
+  });
+});
+
+describe('/api/network (UniFi)', () => {
+  test('returns WAN rate, transfer and online state through the real route', async () => {
+    const { status, body } = await get('/api/network');
+    assert.equal(status, 200);
+    assert.equal(body.site.name, 'Home');
+    assert.equal(body.online, true);
+    assert.equal(body.downloadKbps, 18400);
+    assert.equal(body.transfer.downloadBytes, 3_600_000_000);
   });
 });
 

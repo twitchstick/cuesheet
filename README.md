@@ -4,7 +4,7 @@
 
 <h1 align="center">Cuesheet</h1>
 
-<p align="center">A calm media dashboard for Plex, Jellyfin, Radarr, Sonarr and Seerr.</p>
+<p align="center">A calm media dashboard for Plex, Jellyfin, Radarr, Sonarr, Seerr and UniFi.</p>
 
 <p align="center">
   <a href="https://github.com/twitchstick/cuesheet/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/twitchstick/cuesheet?label=release&color=7c5cff"></a>
@@ -29,6 +29,7 @@ and keeps every API key on the server.
 - **Bandwidth** – what all the streaming is costing the server, split between remote and local, with a figure on every stream.
 - **Details on click** – open any poster or release for its synopsis, runtime, genres, cast and crew; open a stream for its signal path — codecs in and out, resolution, container, subtitles, and why it is transcoding.
 - **Download queue, live** – the same trace Requests uses, for whatever Radarr and Sonarr are actively fetching right now, whether or not it came from a request. Progress creeps forward between refreshes instead of jumping once a poll lands. Failed, stalled and paused items say so plainly rather than reading as a generic "downloading." Add SABnzbd and a slim strip above the queue shows current speed from whichever download client you actually use.
+- **UniFi network pulse** – an optional overview card for a UDM or other UniFi gateway: internet online/offline state, current download/upload rate, and download/upload transferred over the last seven days.
 - **Quick links** – a row of squares for anything else on your network — Unraid's own UI, Portainer, Tautulli, whatever else you'd otherwise bookmark separately. Add a name and an address; the icon is the site's own favicon by default, with a small curated set to fall back on, or point it at any icon of your own — a self-hosted [selfh.st/icons](https://selfh.st/icons/) mirror, say.
 - **Installable** – add it to your phone's home screen and it opens full-screen, no browser chrome. The app shell loads instantly even on a bad connection; the data itself is always live, never served stale from a cache.
 
@@ -102,8 +103,11 @@ an update.
 | `SEERR_API_KEY` | Overseerr/Jellyseerr → Settings → General → API Key |
 | `SEERR_USER_ID` (optional) | Requests are created as the API key's owner unless this is set to another Seerr user id. |
 | `SABNZBD_API_KEY` | SABnzbd → Config → General → API Key |
+| `UNIFI_API_KEY` | UniFi Site Manager → Settings → API Keys → Create New API Key |
 
 These names are the environment variables, which exist for docker compose users. On Unraid you enter the same values in the setup wizard instead.
+
+The UniFi card uses Ubiquiti's official Site Manager API at `https://api.ui.com`. If the key can see more than one site, test the connection in Cuesheet and select the UDM Pro site from the list. The seven-day transfer figures are calculated from UniFi's available hourly WAN-rate samples, so a partial history is labeled in the card.
 
 Use LAN addresses on Apollo (for example `http://192.168.1.10:32400`), or `http://<container-name>:<port>` if the containers share a custom Docker network.
 

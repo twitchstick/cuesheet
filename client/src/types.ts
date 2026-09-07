@@ -1,4 +1,4 @@
-export type ServiceName = 'plex' | 'jellyfin' | 'radarr' | 'sonarr' | 'seerr' | 'sabnzbd';
+export type ServiceName = 'plex' | 'jellyfin' | 'radarr' | 'sonarr' | 'seerr' | 'sabnzbd' | 'unifi';
 export type View = 'overview' | 'recent' | 'calendar' | 'queue' | 'requests' | 'setup';
 
 export interface AppConfig {
@@ -165,6 +165,20 @@ export interface DownloadClientStats {
   diskFreeGb: number | null;
 }
 
+export interface NetworkStats {
+  site: { id: string; name: string };
+  online: boolean | null;
+  /** Latest five-minute average reported by UniFi. */
+  downloadKbps: number | null;
+  uploadKbps: number | null;
+  metricTime: string | null;
+  transfer: {
+    downloadBytes: number;
+    uploadBytes: number;
+    sampleCount: number;
+  };
+}
+
 export interface DownloadItem {
   id: string;
   source: 'radarr' | 'sonarr';
@@ -263,6 +277,7 @@ export interface ServiceSettings {
   tokenSet?: boolean;
   apiKeySet?: boolean;
   userId?: string;
+  siteId?: string;
 }
 
 export interface Settings {
@@ -277,6 +292,7 @@ export interface Settings {
   sonarr: ServiceSettings;
   seerr: ServiceSettings;
   sabnzbd: ServiceSettings;
+  unifi: ServiceSettings;
 }
 
 export interface SetupStatus {
@@ -289,6 +305,7 @@ export interface TestResult {
   name?: string;
   version?: string | null;
   users?: { id: string; name: string }[];
+  sites?: { id: string; name: string }[];
   error?: string;
 }
 

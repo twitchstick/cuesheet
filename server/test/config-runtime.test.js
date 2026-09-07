@@ -17,6 +17,7 @@ const SERVICE_ENV_VARS = [
   'PLEX_URL', 'PLEX_TOKEN', 'JELLYFIN_URL', 'JELLYFIN_API_KEY', 'JELLYFIN_USER_ID',
   'RADARR_URL', 'RADARR_API_KEY', 'SONARR_URL', 'SONARR_API_KEY',
   'SEERR_URL', 'SEERR_API_KEY', 'SEERR_USER_ID', 'SABNZBD_URL', 'SABNZBD_API_KEY',
+  'UNIFI_API_URL', 'UNIFI_API_KEY', 'UNIFI_SITE_ID',
 ];
 
 let dataDir;
@@ -32,11 +33,11 @@ before(async () => {
 after(() => rmSync(dataDir, { recursive: true, force: true }));
 
 describe('a fresh boot with nothing configured', () => {
-  test('nothing is enabled and every url/secret is blank', () => {
+  test('nothing is enabled and every secret is blank', () => {
     assert.equal(cfg.anyServiceConfigured(), false);
     const s = cfg.getSettings();
     for (const service of cfg.SERVICES) {
-      assert.equal(s[service].url, '');
+      assert.equal(s[service].url, service === 'unifi' ? 'https://api.ui.com' : '');
       assert.equal(s[service][`${cfg.SECRET_FIELD[service]}Set`], false);
     }
   });

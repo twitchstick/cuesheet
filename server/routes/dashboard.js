@@ -11,9 +11,19 @@ import * as radarr from '../services/radarr.js';
 import * as sonarr from '../services/sonarr.js';
 import * as seerr from '../services/seerr.js';
 import * as sabnzbd from '../services/sabnzbd.js';
+import * as unifi from '../services/unifi.js';
 import { buildLifecycle } from '../lifecycle.js';
 
 const router = express.Router();
+
+router.get('/network', async (_req, res, next) => {
+  if (!config.unifi.enabled) return res.status(404).json({ error: 'UniFi is not configured' });
+  try {
+    res.json(await cached('unifi-network', 30_000, () => unifi.networkStats(config.unifi)));
+  } catch (err) {
+    next(err);
+  }
+});
 
 /** Run one loader per enabled service and merge the results, reporting per-service errors. */
 async function gather(tasks) {
