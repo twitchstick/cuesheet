@@ -2,6 +2,7 @@ export type ServiceName = 'plex' | 'jellyfin' | 'radarr' | 'sonarr' | 'seerr' | 
 export type View = 'overview' | 'recent' | 'calendar' | 'queue' | 'requests' | 'setup';
 
 export interface AppConfig {
+  version: string;
   title: string;
   serverName: string;
   userName: string;

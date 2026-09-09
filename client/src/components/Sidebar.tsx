@@ -22,13 +22,14 @@ export interface ServiceHealth {
 
 interface Props {
   title: string;
+  version: string;
   view: View;
   available: Set<View>;
   onNavigate: (view: View) => void;
   services: ServiceHealth[];
 }
 
-export default function Sidebar({ title, view, available, onNavigate, services }: Props) {
+export default function Sidebar({ title, version, view, available, onNavigate, services }: Props) {
   const settings = NAV.find((n) => n.view === 'setup')!;
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-night-900 px-4 py-6 lg:flex">
@@ -53,6 +54,7 @@ export default function Sidebar({ title, view, available, onNavigate, services }
               <settings.icon className="h-4 w-4 text-fog-500" strokeWidth={1.75} />
               {settings.label}
             </button>
+            <p className="px-3 pt-1 font-mono text-[10px] tracking-wide text-fog-600">Cuesheet v{version}</p>
           </div>
         )}
       </div>

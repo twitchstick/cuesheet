@@ -33,6 +33,7 @@ function envSecret(key, fallback = '') {
 
 /** The app's name is fixed — it is the product, not a preference. */
 export const APP_TITLE = 'Cuesheet';
+export const APP_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const DEFAULT_RECENT_LIMIT = 15;
 const RECENT_LIMIT_RANGE = [3, 40];
 
@@ -244,6 +245,7 @@ export const anyServiceConfigured = () => SERVICES.some((s) => config[s].enabled
 
 export const publicConfig = () => ({
   title: config.title,
+  version: APP_VERSION,
   serverName: config.serverName,
   userName: config.userName,
   recentLimit: config.recentLimit,

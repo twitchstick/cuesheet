@@ -201,7 +201,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar title={title} view={view} available={d.available} onNavigate={navigate} services={d.health} />
+      <Sidebar title={title} version={d.config?.version ?? '0.0.0'} view={view} available={d.available} onNavigate={navigate} services={d.health} />
 
       <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
         <TopBar title={title} serverName={serverName} greeting={hello} onLogout={authStatus.enabled ? handleLogout : undefined} />
