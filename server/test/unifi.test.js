@@ -63,6 +63,24 @@ describe('UniFi network statistics', () => {
 });
 
 describe('UniFi live statistics', () => {
+  test('prefers a directly configured UDM Pro for live gateway discovery', async () => {
+    const calls = mockFetch([
+      jsonRes({ data: [{ id: 'local-default', internalReference: 'default', name: 'Default' }] }),
+      jsonRes({ data: [{ id: 'gateway-1', name: 'UDM Pro', features: ['gateway'], state: 'ONLINE' }] }),
+    ]);
+    const target = await liveTarget({
+      ...cfg,
+      localUrl: 'https://192.168.1.1',
+      localApiKey: 'local-key',
+      allowSelfSigned: true,
+    });
+    assert.equal(target.local, true);
+    assert.equal(target.name, 'UDM Pro');
+    assert.match(target.url, /^https:\/\/192\.168\.1\.1\/proxy\/network\/integration\/v1\/sites\/local-default/);
+    assert.equal(calls[0].init.headers['X-API-Key'], 'local-key');
+    assert.ok(calls[0].init.dispatcher, 'self-signed requests use a scoped dispatcher');
+  });
+
   test('discovers the selected console site and its gateway', async () => {
     mockFetch([
       jsonRes(sites),
@@ -86,5 +104,12 @@ describe('UniFi live statistics', () => {
       uploadKbps: 5_250,
       observedAt: '2026-09-07T12:00:00Z',
     });
+  });
+
+  test('uses the local key for a directly discovered gateway reading', async () => {
+    const calls = mockFetch(jsonRes({ uplink: { rxRateBps: 1_000_000, txRateBps: 500_000 } }));
+    await liveStats({ ...cfg, localApiKey: 'local-key', allowSelfSigned: true }, { url: 'https://192.168.1.1/live', name: 'UDM Pro', local: true });
+    assert.equal(calls[0].init.headers['X-API-Key'], 'local-key');
+    assert.ok(calls[0].init.dispatcher, 'self-signed requests use a scoped dispatcher');
   });
 });

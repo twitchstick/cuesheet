@@ -12,7 +12,17 @@ interface Props {
   notify: (message: string, tone?: 'ok' | 'error') => void;
 }
 
-type ServiceDraft = { url: string; secret: string; secretSet: boolean; userId: string; siteId: string };
+type ServiceDraft = {
+  url: string;
+  secret: string;
+  secretSet: boolean;
+  userId: string;
+  siteId: string;
+  localUrl: string;
+  localSecret: string;
+  localSecretSet: boolean;
+  allowSelfSigned: boolean;
+};
 type Draft = { general: Settings['general'] } & Record<ServiceName, ServiceDraft>;
 
 const SERVICE_META: Record<
@@ -76,13 +86,16 @@ const STEPS: { id: string; title: string; caption: string; services: ServiceName
 
 const fromSettings = (s: Settings): Draft => ({
   general: { ...s.general },
-  plex: { url: s.plex.url, secret: '', secretSet: Boolean(s.plex.tokenSet), userId: '', siteId: '' },
-  jellyfin: { url: s.jellyfin.url, secret: '', secretSet: Boolean(s.jellyfin.apiKeySet), userId: s.jellyfin.userId ?? '', siteId: '' },
-  radarr: { url: s.radarr.url, secret: '', secretSet: Boolean(s.radarr.apiKeySet), userId: '', siteId: '' },
-  sonarr: { url: s.sonarr.url, secret: '', secretSet: Boolean(s.sonarr.apiKeySet), userId: '', siteId: '' },
-  seerr: { url: s.seerr.url, secret: '', secretSet: Boolean(s.seerr.apiKeySet), userId: s.seerr.userId ?? '', siteId: '' },
-  sabnzbd: { url: s.sabnzbd.url, secret: '', secretSet: Boolean(s.sabnzbd.apiKeySet), userId: '', siteId: '' },
-  unifi: { url: s.unifi.url || 'https://api.ui.com', secret: '', secretSet: Boolean(s.unifi.apiKeySet), userId: '', siteId: s.unifi.siteId ?? '' },
+  plex: { url: s.plex.url, secret: '', secretSet: Boolean(s.plex.tokenSet), userId: '', siteId: '', localUrl: '', localSecret: '', localSecretSet: false, allowSelfSigned: false },
+  jellyfin: { url: s.jellyfin.url, secret: '', secretSet: Boolean(s.jellyfin.apiKeySet), userId: s.jellyfin.userId ?? '', siteId: '', localUrl: '', localSecret: '', localSecretSet: false, allowSelfSigned: false },
+  radarr: { url: s.radarr.url, secret: '', secretSet: Boolean(s.radarr.apiKeySet), userId: '', siteId: '', localUrl: '', localSecret: '', localSecretSet: false, allowSelfSigned: false },
+  sonarr: { url: s.sonarr.url, secret: '', secretSet: Boolean(s.sonarr.apiKeySet), userId: '', siteId: '', localUrl: '', localSecret: '', localSecretSet: false, allowSelfSigned: false },
+  seerr: { url: s.seerr.url, secret: '', secretSet: Boolean(s.seerr.apiKeySet), userId: s.seerr.userId ?? '', siteId: '', localUrl: '', localSecret: '', localSecretSet: false, allowSelfSigned: false },
+  sabnzbd: { url: s.sabnzbd.url, secret: '', secretSet: Boolean(s.sabnzbd.apiKeySet), userId: '', siteId: '', localUrl: '', localSecret: '', localSecretSet: false, allowSelfSigned: false },
+  unifi: {
+    url: s.unifi.url || 'https://api.ui.com', secret: '', secretSet: Boolean(s.unifi.apiKeySet), userId: '', siteId: s.unifi.siteId ?? '',
+    localUrl: s.unifi.localUrl ?? '', localSecret: '', localSecretSet: Boolean(s.unifi.localApiKeySet), allowSelfSigned: Boolean(s.unifi.allowSelfSigned),
+  },
 });
 
 const secretField = (s: ServiceName) => (s === 'plex' ? 'token' : 'apiKey');
@@ -112,7 +125,7 @@ export default function SetupWizard({ firstRun, auth, onAuthChanged, onSaved, on
   const update = (service: ServiceName, patch: Partial<ServiceDraft>) => {
     setDraft((d) => (d ? { ...d, [service]: { ...d[service], ...patch } } : d));
     // Changing the URL or credential invalidates the last test; picking a user does not.
-    if ('url' in patch || 'secret' in patch) setTests((t) => ({ ...t, [service]: undefined }));
+    if ('url' in patch || 'secret' in patch || 'localUrl' in patch || 'localSecret' in patch) setTests((t) => ({ ...t, [service]: undefined }));
   };
 
   const test = async (service: ServiceName) => {
@@ -143,7 +156,13 @@ export default function SetupWizard({ firstRun, auth, onAuthChanged, onSaved, on
         if (d.secret.trim()) entry[secretField(s)] = d.secret.trim();
         else if (!d.url.trim()) entry[secretField(s)] = '';
         if (s === 'jellyfin' || s === 'seerr') entry.userId = d.userId;
-        if (s === 'unifi') entry.siteId = d.siteId;
+        if (s === 'unifi') {
+          entry.siteId = d.siteId;
+          entry.localUrl = d.localUrl.trim();
+          entry.allowSelfSigned = d.allowSelfSigned;
+          if (d.localSecret.trim()) entry.localApiKey = d.localSecret.trim();
+          else if (!d.localUrl.trim()) entry.localApiKey = '';
+        }
         patch[s] = entry;
       }
       const { config } = await api.saveSettings(patch);
@@ -254,7 +273,7 @@ export default function SetupWizard({ firstRun, auth, onAuthChanged, onSaved, on
                   onChange={(patch) => update(s, patch)}
                   onTest={() => test(s)}
                   onClear={() => {
-                    update(s, { url: s === 'unifi' ? 'https://api.ui.com' : '', secret: '', secretSet: false, userId: '', siteId: '' });
+                    update(s, { url: s === 'unifi' ? 'https://api.ui.com' : '', secret: '', secretSet: false, userId: '', siteId: '', localUrl: '', localSecret: '', localSecretSet: false, allowSelfSigned: false });
                   }}
                 />
               ))}
@@ -533,6 +552,28 @@ function ServiceCard({
               <input className={inputCls} value={draft.siteId} onChange={(e) => onChange({ siteId: e.target.value })} placeholder="Test the connection to pick from a list" />
             )}
           </Field>
+        )}
+        {service === 'unifi' && (
+          <>
+            <Field label="UDM Pro local URL (for live rates)" hint="Example: https://192.168.1.1">
+              <input className={inputCls} value={draft.localUrl} onChange={(e) => onChange({ localUrl: e.target.value })} inputMode="url" autoComplete="off" />
+            </Field>
+            <Field label="Local Network API key" hint="UniFi Network → Control Plane → Integrations">
+              <input
+                className={inputCls}
+                type={show ? 'text' : 'password'}
+                value={draft.localSecret}
+                onChange={(e) => onChange({ localSecret: e.target.value })}
+                placeholder={draft.localSecretSet ? 'Saved — leave blank to keep' : 'Paste here'}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+            <label className="flex items-center gap-2 text-xs text-fog-400 sm:col-span-2">
+              <input type="checkbox" checked={draft.allowSelfSigned} onChange={(e) => onChange({ allowSelfSigned: e.target.checked })} />
+              Allow the self-signed HTTPS certificate on this UDM Pro only
+            </label>
+          </>
         )}
       </div>
 

@@ -104,10 +104,11 @@ an update.
 | `SEERR_USER_ID` (optional) | Requests are created as the API key's owner unless this is set to another Seerr user id. |
 | `SABNZBD_API_KEY` | SABnzbd → Config → General → API Key |
 | `UNIFI_API_KEY` | UniFi Site Manager → Settings → API Keys → Create New API Key |
+| `UNIFI_LOCAL_API_KEY` (optional) | UniFi Network → Control Plane → Integrations. Used with the UDM Pro LAN URL for true live rates. |
 
 These names are the environment variables, which exist for docker compose users. On Unraid you enter the same values in the setup wizard instead.
 
-The UniFi card uses Ubiquiti's official Site Manager and Network APIs through `https://api.ui.com`. If the key can see more than one site, test the connection in Cuesheet and select the UDM Pro site from the list. Live download/upload rates refresh from the gateway's real-time statistics every three seconds. The seven-day transfer figures are calculated from UniFi's available hourly WAN-rate samples, so a partial history is labeled in the card.
+The UniFi card uses Ubiquiti's official Site Manager API through `https://api.ui.com`. If the key can see more than one site, test the connection in Cuesheet and select the UDM Pro site from the list. For true live download/upload rates on consoles that cannot use Ubiquiti's cloud connector, also enter the UDM Pro's LAN URL and a local Network API key in Settings. Enable the self-signed-certificate option when the console uses its default local certificate; that exception is scoped only to the configured UDM Pro address. Live rates refresh every three seconds. The seven-day transfer figures are calculated from UniFi's available hourly WAN-rate samples, so a partial history is labeled in the card.
 
 Use LAN addresses on Apollo (for example `http://192.168.1.10:32400`), or `http://<container-name>:<port>` if the containers share a custom Docker network.
 

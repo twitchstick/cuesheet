@@ -1,3 +1,5 @@
+import { Agent } from 'undici';
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_BODY_BYTES = 12 * 1024 * 1024;
 
@@ -42,7 +44,15 @@ export class UpstreamError extends Error {
   }
 }
 
-async function request(url, { headers = {}, method = 'GET', body, timeoutMs = DEFAULT_TIMEOUT_MS, hops = 2 } = {}) {
+let selfSignedDispatcher;
+
+function dispatcherFor(allowSelfSigned) {
+  if (!allowSelfSigned) return undefined;
+  selfSignedDispatcher ??= new Agent({ connect: { rejectUnauthorized: false } });
+  return selfSignedDispatcher;
+}
+
+async function request(url, { headers = {}, method = 'GET', body, timeoutMs = DEFAULT_TIMEOUT_MS, hops = 2, allowSelfSigned = false } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -51,6 +61,7 @@ async function request(url, { headers = {}, method = 'GET', body, timeoutMs = DE
       headers: { Accept: 'application/json', ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
+      dispatcher: dispatcherFor(allowSelfSigned),
       // Follow redirects ourselves, so a hop cannot land on an address the
       // guard above would have refused.
       redirect: 'manual',
@@ -59,7 +70,10 @@ async function request(url, { headers = {}, method = 'GET', body, timeoutMs = DE
     if (!location) return res;
     if (hops <= 0) throw new UpstreamError(`${safeHost(url)} redirected too many times`, 502);
     const next = assertReachableUrl(new URL(location, url).toString());
-    return await request(next, { headers, method, body, timeoutMs, hops: hops - 1 });
+    // A UDM's self-signed exception must never follow a redirect onto a
+    // different host. Keep normal certificate verification everywhere else.
+    const sameOrigin = new URL(next).origin === new URL(url).origin;
+    return await request(next, { headers, method, body, timeoutMs, hops: hops - 1, allowSelfSigned: allowSelfSigned && sameOrigin });
   } catch (err) {
     // A refused address is a clear answer, not a network failure — say so plainly.
     if (err instanceof UpstreamError) throw err;

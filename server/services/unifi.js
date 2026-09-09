@@ -21,22 +21,19 @@ function siteList(payload) {
 }
 
 const connectorRoot = (url, hostId) => `${clean(url)}/v1/connector/consoles/${encodeURIComponent(hostId)}/network/integration`;
+const localRoot = (url) => {
+  const base = clean(url);
+  return base.endsWith('/proxy/network/integration') ? base : `${base}/proxy/network/integration`;
+};
 
-/** Discover the official real-time statistics endpoint for the chosen site's gateway. */
-export async function liveTarget({ url, apiKey, siteId }) {
-  const availableSites = await sites({ url, apiKey });
-  if (!availableSites.length) throw new Error('No UniFi sites are available to this API key');
-  const selected = availableSites.find((site) => site.id === siteId) ?? availableSites[0];
-  if (!selected.hostId) throw new Error('UniFi did not report a console for this site');
-
-  const root = connectorRoot(url, selected.hostId);
-  const requestHeaders = headers(apiKey);
-  const localSitesPayload = await fetchJson(`${root}/v1/sites?limit=200`, { headers: requestHeaders, timeoutMs: 10_000 });
+async function networkGateway(root, apiKey, allowSelfSigned, preferredReference = '') {
+  const options = { headers: headers(apiKey), timeoutMs: 10_000, allowSelfSigned };
+  const localSitesPayload = await fetchJson(`${root}/v1/sites?limit=200`, options);
   const localSites = Array.isArray(localSitesPayload?.data) ? localSitesPayload.data : [];
-  const localSite = localSites.find((site) => site?.internalReference === selected.internalReference) ?? localSites[0];
+  const localSite = localSites.find((site) => site?.internalReference === preferredReference) ?? localSites[0];
   if (!localSite?.id) throw new Error('No local Network site is available for this UniFi console');
 
-  const devicesPayload = await fetchJson(`${root}/v1/sites/${encodeURIComponent(localSite.id)}/devices?limit=200`, { headers: requestHeaders, timeoutMs: 10_000 });
+  const devicesPayload = await fetchJson(`${root}/v1/sites/${encodeURIComponent(localSite.id)}/devices?limit=200`, options);
   const devices = Array.isArray(devicesPayload?.data) ? devicesPayload.data : [];
   const gateways = devices.filter((device) => Array.isArray(device?.features) && device.features.includes('gateway'));
   const gateway = gateways.find((device) => device?.state === 'ONLINE') ?? gateways[0];
@@ -45,12 +42,31 @@ export async function liveTarget({ url, apiKey, siteId }) {
   return {
     url: `${root}/v1/sites/${encodeURIComponent(localSite.id)}/devices/${encodeURIComponent(gateway.id)}/statistics/latest`,
     name: String(gateway.name || gateway.model || 'UniFi gateway'),
+    local: allowSelfSigned !== undefined,
   };
 }
 
+/** Discover the official real-time statistics endpoint for the chosen site's gateway. */
+export async function liveTarget({ url, apiKey, siteId, localUrl, localApiKey, allowSelfSigned }) {
+  if (localUrl && localApiKey) {
+    return networkGateway(localRoot(localUrl), localApiKey, allowSelfSigned);
+  }
+  const availableSites = await sites({ url, apiKey });
+  if (!availableSites.length) throw new Error('No UniFi sites are available to this API key');
+  const selected = availableSites.find((site) => site.id === siteId) ?? availableSites[0];
+  if (!selected.hostId) throw new Error('UniFi did not report a console for this site');
+
+  const root = connectorRoot(url, selected.hostId);
+  return networkGateway(root, apiKey, undefined, selected.internalReference);
+}
+
 /** The Network API reports current gateway uplink rates in bits per second. */
-export async function liveStats({ apiKey }, target) {
-  const payload = await fetchJson(target.url, { headers: headers(apiKey), timeoutMs: 8_000 });
+export async function liveStats({ apiKey, localApiKey, allowSelfSigned }, target) {
+  const payload = await fetchJson(target.url, {
+    headers: headers(target.local ? localApiKey : apiKey),
+    timeoutMs: 8_000,
+    allowSelfSigned: target.local && allowSelfSigned,
+  });
   return {
     gateway: target.name,
     downloadKbps: finite(payload?.uplink?.rxRateBps) === null ? null : finite(payload.uplink.rxRateBps) / 1000,

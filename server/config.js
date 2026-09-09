@@ -64,7 +64,7 @@ function verifyPasswordHash(candidate, stored) {
 export const SERVICES = ['plex', 'jellyfin', 'radarr', 'sonarr', 'seerr', 'sabnzbd', 'unifi'];
 /** Name of the credential field for each service. */
 export const SECRET_FIELD = { plex: 'token', jellyfin: 'apiKey', radarr: 'apiKey', sonarr: 'apiKey', seerr: 'apiKey', sabnzbd: 'apiKey', unifi: 'apiKey' };
-const EXTRA_FIELDS = { jellyfin: ['userId'], seerr: ['userId'], unifi: ['siteId'] };
+const EXTRA_FIELDS = { jellyfin: ['userId'], seerr: ['userId'], unifi: ['siteId', 'localUrl'] };
 
 export const DATA_DIR = path.resolve(env('DATA_DIR', 'data'));
 export const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
@@ -83,7 +83,14 @@ function envDefaults() {
     sonarr: { url: env('SONARR_URL'), apiKey: envSecret('SONARR_API_KEY') },
     seerr: { url: env('SEERR_URL'), apiKey: envSecret('SEERR_API_KEY'), userId: env('SEERR_USER_ID') },
     sabnzbd: { url: env('SABNZBD_URL'), apiKey: envSecret('SABNZBD_API_KEY') },
-    unifi: { url: env('UNIFI_API_URL', 'https://api.ui.com'), apiKey: envSecret('UNIFI_API_KEY'), siteId: env('UNIFI_SITE_ID') },
+    unifi: {
+      url: env('UNIFI_API_URL', 'https://api.ui.com'),
+      apiKey: envSecret('UNIFI_API_KEY'),
+      siteId: env('UNIFI_SITE_ID'),
+      localUrl: env('UNIFI_LOCAL_URL'),
+      localApiKey: envSecret('UNIFI_LOCAL_API_KEY'),
+      allowSelfSigned: env('UNIFI_ALLOW_SELF_SIGNED').toLowerCase() === 'true',
+    },
   };
 }
 
@@ -149,6 +156,10 @@ function rebuild() {
   for (const s of SERVICES) {
     const fields = { url: stripSlash(m[s].url), [SECRET_FIELD[s]]: String(m[s][SECRET_FIELD[s]] ?? '').trim() };
     for (const f of EXTRA_FIELDS[s] ?? []) fields[f] = String(m[s][f] ?? '').trim();
+    if (s === 'unifi') {
+      fields.localApiKey = String(m[s].localApiKey ?? '').trim();
+      fields.allowSelfSigned = m[s].allowSelfSigned === true;
+    }
     config[s] = { ...fields, enabled: Boolean(fields.url && fields[SECRET_FIELD[s]]) };
   }
   config.links = (Array.isArray(saved.links) ? saved.links : []).map(loadLink).filter(Boolean);
@@ -260,6 +271,10 @@ export function getSettings() {
     const secret = SECRET_FIELD[s];
     out[s] = { url: config[s].url, [`${secret}Set`]: Boolean(config[s][secret]) };
     for (const f of EXTRA_FIELDS[s] ?? []) out[s][f] = config[s][f];
+    if (s === 'unifi') {
+      out[s].localApiKeySet = Boolean(config[s].localApiKey);
+      out[s].allowSelfSigned = config[s].allowSelfSigned;
+    }
   }
   return out;
 }
@@ -362,6 +377,11 @@ export function saveSettings(patch) {
     const secret = SECRET_FIELD[s];
     if (p[secret] !== undefined && p[secret] !== null) cur[secret] = str(p[secret], 500) ?? '';
     for (const f of EXTRA_FIELDS[s] ?? []) if (p[f] !== undefined) cur[f] = str(p[f], 100) ?? '';
+    if (s === 'unifi') {
+      if (p.localUrl !== undefined) cur.localUrl = cleanUrl(str(p.localUrl, 300) ?? '', 'UniFi local');
+      if (p.localApiKey !== undefined && p.localApiKey !== null) cur.localApiKey = str(p.localApiKey, 500) ?? '';
+      if (p.allowSelfSigned !== undefined) cur.allowSelfSigned = p.allowSelfSigned === true;
+    }
     next[s] = cur;
   }
 

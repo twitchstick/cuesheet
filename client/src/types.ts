@@ -285,6 +285,9 @@ export interface ServiceSettings {
   apiKeySet?: boolean;
   userId?: string;
   siteId?: string;
+  localUrl?: string;
+  localApiKeySet?: boolean;
+  allowSelfSigned?: boolean;
 }
 
 export interface Settings {
