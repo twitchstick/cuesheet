@@ -81,6 +81,28 @@ describe('UniFi live statistics', () => {
     assert.ok(calls[0].init.dispatcher, 'self-signed requests use a scoped dispatcher');
   });
 
+  test('recognizes an integrated UDM when its Network version omits the gateway feature flag', async () => {
+    mockFetch([
+      jsonRes({ data: [{ id: 'local-default', internalReference: 'default', name: 'Default' }] }),
+      jsonRes({ data: [
+        { id: 'ap-1', name: 'Hall AP', model: 'U7PRO', features: ['accessPoint'], state: 'ONLINE' },
+        { id: 'gateway-1', name: 'UDM Roosevelt', model: 'UDMPRO', features: ['switching'], state: 'ONLINE' },
+      ] }),
+    ]);
+    const target = await liveTarget({ ...cfg, localUrl: 'https://192.168.1.1', localApiKey: 'local-key', allowSelfSigned: true });
+    assert.equal(target.name, 'UDM Roosevelt');
+    assert.match(target.url, /devices\/gateway-1\/statistics\/latest$/);
+  });
+
+  test('accepts the object-shaped gateway feature returned by richer device payloads', async () => {
+    mockFetch([
+      jsonRes({ data: [{ id: 'local-default' }] }),
+      jsonRes({ data: [{ id: 'gateway-1', name: 'Router', features: { gateway: {} }, state: 'ONLINE' }] }),
+    ]);
+    const target = await liveTarget({ ...cfg, localUrl: 'https://192.168.1.1', localApiKey: 'local-key' });
+    assert.equal(target.name, 'Router');
+  });
+
   test('discovers the selected console site and its gateway', async () => {
     mockFetch([
       jsonRes(sites),

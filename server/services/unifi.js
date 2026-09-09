@@ -26,6 +26,22 @@ const localRoot = (url) => {
   return base.endsWith('/proxy/network/integration') ? base : `${base}/proxy/network/integration`;
 };
 
+/**
+ * Network versions in the field have returned `features` both as the
+ * documented overview array and as the richer details object. Integrated
+ * consoles have also occasionally omitted the gateway flag altogether, so
+ * recognize the stable UDM/UDR/UXG/UCG/USG product names as a compatibility
+ * fallback. This is only target discovery; the statistics response still has
+ * to provide a WAN uplink before Cuesheet displays it.
+ */
+function isGateway(device) {
+  const features = device?.features;
+  if (Array.isArray(features) && features.some((feature) => String(feature).toLowerCase() === 'gateway')) return true;
+  if (features && typeof features === 'object' && Object.hasOwn(features, 'gateway')) return true;
+  const identity = [device?.type, device?.category, device?.productLine, device?.model, device?.name].filter(Boolean).join(' ').toUpperCase();
+  return /(^|[^A-Z0-9])(UDM|UDR|UXG|UCG|USG)([^A-Z0-9]|$)|DREAM MACHINE|DREAM ROUTER|CLOUD GATEWAY|SECURITY GATEWAY|\bGATEWAY\b/.test(identity);
+}
+
 async function networkGateway(root, apiKey, allowSelfSigned, preferredReference = '') {
   const options = { headers: headers(apiKey), timeoutMs: 10_000, allowSelfSigned };
   const localSitesPayload = await fetchJson(`${root}/v1/sites?limit=200`, options);
@@ -35,7 +51,7 @@ async function networkGateway(root, apiKey, allowSelfSigned, preferredReference 
 
   const devicesPayload = await fetchJson(`${root}/v1/sites/${encodeURIComponent(localSite.id)}/devices?limit=200`, options);
   const devices = Array.isArray(devicesPayload?.data) ? devicesPayload.data : [];
-  const gateways = devices.filter((device) => Array.isArray(device?.features) && device.features.includes('gateway'));
+  const gateways = devices.filter(isGateway);
   const gateway = gateways.find((device) => device?.state === 'ONLINE') ?? gateways[0];
   if (!gateway?.id) throw new Error('No UniFi gateway was found at this site');
 

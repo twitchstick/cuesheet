@@ -70,7 +70,12 @@ export default function NetworkStatus({ data, live, error, liveError, loading }:
           {data && data.transfer.sampleCount < 150 && (
             <p className="mt-2 text-[11px] text-fog-500">Based on {data.transfer.sampleCount} available hourly samples.</p>
           )}
-          {liveError && <p className="mt-2 text-[11px] text-amber-300">Live feed unavailable; showing the latest five-minute average.</p>}
+          {liveError && (
+            <p className="mt-2 text-[11px] text-amber-300" title={liveError}>
+              Live feed unavailable; showing the latest five-minute average.
+              <span className="ml-1 text-fog-500">{liveError}</span>
+            </p>
+          )}
         </div>
       </div>
     </section>
