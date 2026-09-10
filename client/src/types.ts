@@ -304,6 +304,41 @@ export interface Settings {
   seerr: ServiceSettings;
   sabnzbd: ServiceSettings;
   unifi: ServiceSettings;
+  notifications: NotificationSettings;
+}
+
+export interface NotificationSettings {
+  enabled: boolean;
+  pushoverAppTokenSet: boolean;
+  pushoverUserKeySet: boolean;
+  failed: boolean;
+  warning: boolean;
+  stuck: boolean;
+  recovered: boolean;
+  health: boolean;
+  stuckMinutes: number;
+  warningMinutes: number;
+  importMinutes: number;
+  outageMinutes: number;
+}
+
+export interface NotificationEvent {
+  id: string;
+  key: string;
+  kind: 'failed' | 'warning' | 'stuck' | 'import' | 'health' | 'outage' | 'recovered';
+  source: 'radarr' | 'sonarr';
+  title: string;
+  message: string;
+  status: 'active' | 'resolved';
+  openedAt: number;
+  resolvedAt?: number;
+  read?: boolean;
+}
+
+export interface NotificationFeed {
+  active: NotificationEvent[];
+  history: NotificationEvent[];
+  unread: number;
 }
 
 export interface SetupStatus {

@@ -1,4 +1,4 @@
-import type { AppConfig, AuthStatus, CalendarItem, DownloadClientStats, DownloadItem, Errors, HistoryEvent, LifecycleItem, MediaDetail, MediaRequest, NetworkLiveStats, NetworkStats, QuickLink, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
+import type { AppConfig, AuthStatus, CalendarItem, DownloadClientStats, DownloadItem, Errors, HistoryEvent, LifecycleItem, MediaDetail, MediaRequest, NetworkLiveStats, NetworkStats, NotificationFeed, QuickLink, RecentItem, Settings, SetupStatus, Stream, TestResult } from './types';
 
 export class ApiError extends Error {
   status: number;
@@ -57,6 +57,9 @@ export const api = {
   settings: () => get<Settings>('/api/settings'),
   saveSettings: (patch: unknown) => get<{ settings: Settings; config: AppConfig }>('/api/settings', json('PUT', patch)),
   testConnection: (body: { service: string; url: string; token?: string; apiKey?: string }) => get<TestResult>('/api/settings/test', json('POST', body)),
+  notifications: () => get<NotificationFeed>('/api/notifications'),
+  markNotificationsRead: () => get<NotificationFeed>('/api/notifications/read', json('POST', {})),
+  testPushover: (body: { appToken?: string; userKey?: string }) => get<{ ok: true }>('/api/notifications/test', json('POST', body)),
   authStatus: () => get<AuthStatus>('/api/auth/status'),
   login: (password: string) => get<{ ok: true }>('/api/auth/login', json('POST', { password })),
   logout: () => get<{ ok: true }>('/api/auth/logout', json('POST', {})),

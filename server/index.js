@@ -8,6 +8,8 @@ import authRoutes from './routes/auth.js';
 import settingsRoutes from './routes/settings.js';
 import dashboardRoutes from './routes/dashboard.js';
 import mediaRoutes from './routes/media.js';
+import notificationRoutes from './routes/notifications.js';
+import { startNotificationMonitor } from './notifications.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -27,6 +29,7 @@ api.use(authRoutes);
 api.use(settingsRoutes);
 api.use(dashboardRoutes);
 api.use(mediaRoutes);
+api.use(notificationRoutes);
 api.get('/health', (_req, res) => res.json({ ok: true }));
 api.use(notFound);
 api.use(errorHandler);
@@ -65,4 +68,5 @@ if (isMain) {
     console.log(services.length ? `Connected services: ${services.join(', ')}` : 'No services configured yet — open the web UI to run the setup wizard.');
     console.log(`Settings file: ${config.settingsFile}`);
   });
+  startNotificationMonitor();
 }

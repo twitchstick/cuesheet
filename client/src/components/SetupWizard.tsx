@@ -23,7 +23,8 @@ type ServiceDraft = {
   localSecretSet: boolean;
   allowSelfSigned: boolean;
 };
-type Draft = { general: Settings['general'] } & Record<ServiceName, ServiceDraft>;
+type NotificationDraft = Settings['notifications'] & { appToken: string; userKey: string; clearAppToken: boolean; clearUserKey: boolean };
+type Draft = { general: Settings['general']; notifications: NotificationDraft } & Record<ServiceName, ServiceDraft>;
 
 const SERVICE_META: Record<
   ServiceName,
@@ -80,12 +81,14 @@ const STEPS: { id: string; title: string; caption: string; services: ServiceName
   { id: 'library', title: 'Library', caption: 'Radarr, Sonarr and SABnzbd', services: ['radarr', 'sonarr', 'sabnzbd'] },
   { id: 'requests', title: 'Requests', caption: 'Overseerr or Jellyseerr', services: ['seerr'] },
   { id: 'network', title: 'Network', caption: 'UniFi internet health', services: ['unifi'] },
+  { id: 'notifications', title: 'Notifications', caption: 'Alerts and Pushover', services: [] },
   { id: 'security', title: 'Security', caption: 'Optional admin password', services: [] },
   { id: 'review', title: 'Review', caption: 'Check and save', services: [] },
 ];
 
 const fromSettings = (s: Settings): Draft => ({
   general: { ...s.general },
+  notifications: { ...s.notifications, appToken: '', userKey: '', clearAppToken: false, clearUserKey: false },
   plex: { url: s.plex.url, secret: '', secretSet: Boolean(s.plex.tokenSet), userId: '', siteId: '', localUrl: '', localSecret: '', localSecretSet: false, allowSelfSigned: false },
   jellyfin: { url: s.jellyfin.url, secret: '', secretSet: Boolean(s.jellyfin.apiKeySet), userId: s.jellyfin.userId ?? '', siteId: '', localUrl: '', localSecret: '', localSecretSet: false, allowSelfSigned: false },
   radarr: { url: s.radarr.url, secret: '', secretSet: Boolean(s.radarr.apiKeySet), userId: '', siteId: '', localUrl: '', localSecret: '', localSecretSet: false, allowSelfSigned: false },
@@ -165,6 +168,20 @@ export default function SetupWizard({ firstRun, auth, onAuthChanged, onSaved, on
         }
         patch[s] = entry;
       }
+      patch.notifications = {
+        enabled: draft.notifications.enabled,
+        failed: draft.notifications.failed,
+        warning: draft.notifications.warning,
+        stuck: draft.notifications.stuck,
+        recovered: draft.notifications.recovered,
+        health: draft.notifications.health,
+        stuckMinutes: draft.notifications.stuckMinutes,
+        warningMinutes: draft.notifications.warningMinutes,
+        importMinutes: draft.notifications.importMinutes,
+        outageMinutes: draft.notifications.outageMinutes,
+        ...(draft.notifications.appToken.trim() || draft.notifications.clearAppToken ? { pushoverAppToken: draft.notifications.appToken.trim() } : {}),
+        ...(draft.notifications.userKey.trim() || draft.notifications.clearUserKey ? { pushoverUserKey: draft.notifications.userKey.trim() } : {}),
+      };
       const { config } = await api.saveSettings(patch);
       notify('Settings saved');
       onSaved(config);
@@ -282,6 +299,14 @@ export default function SetupWizard({ firstRun, auth, onAuthChanged, onSaved, on
 
           {current.id === 'security' && <SecuritySettings auth={auth} onChanged={onAuthChanged} notify={notify} />}
 
+          {current.id === 'notifications' && (
+            <NotificationSettings
+              draft={draft.notifications}
+              onChange={(patch) => setDraft({ ...draft, notifications: { ...draft.notifications, ...patch } })}
+              notify={notify}
+            />
+          )}
+
           {current.id === 'review' && (
             <div className="flex flex-col gap-4">
               <div>
@@ -348,7 +373,7 @@ function Shell({ firstRun, onCancel, children }: { firstRun: boolean; onCancel: 
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">{firstRun ? 'Setup' : 'Settings'}</h2>
-          <p className="mt-0.5 text-sm text-fog-500">{firstRun ? 'Connect your services to bring the dashboard to life' : 'Connections and names'}</p>
+          <p className="mt-0.5 text-sm text-fog-500">{firstRun ? 'Connect your services to bring the dashboard to life' : 'Connections, alerts and security'}</p>
         </div>
         <div className="flex items-center gap-2">
           {!firstRun && (
@@ -372,6 +397,86 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       {children}
       {hint && <span className="mt-1 block text-[11px] text-fog-500">{hint}</span>}
     </label>
+  );
+}
+
+function NotificationSettings({
+  draft,
+  onChange,
+  notify,
+}: {
+  draft: NotificationDraft;
+  onChange: (patch: Partial<NotificationDraft>) => void;
+  notify: (message: string, tone?: 'ok' | 'error') => void;
+}) {
+  const [testing, setTesting] = useState(false);
+  const [show, setShow] = useState(false);
+  const canTest = Boolean((draft.appToken.trim() || (draft.pushoverAppTokenSet && !draft.clearAppToken)) && (draft.userKey.trim() || (draft.pushoverUserKeySet && !draft.clearUserKey)));
+  const test = async () => {
+    setTesting(true);
+    try {
+      await api.testPushover({ appToken: draft.appToken.trim() || undefined, userKey: draft.userKey.trim() || undefined });
+      notify('Pushover test sent');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Could not send the Pushover test', 'error');
+    } finally {
+      setTesting(false);
+    }
+  };
+  const toggle = (field: keyof Pick<NotificationDraft, 'failed' | 'warning' | 'stuck' | 'recovered' | 'health'>, label: string) => (
+    <label className="flex items-center gap-2 rounded-lg border border-line bg-night-900/50 px-3 py-2 text-sm text-fog-300">
+      <input type="checkbox" checked={draft[field]} onChange={(e) => onChange({ [field]: e.target.checked })} /> {label}
+    </label>
+  );
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <h3 className="text-lg font-bold">Notifications</h3>
+        <p className="mt-1 text-sm text-fog-500">Cuesheet watches downloads on the server, records incidents here, and can deliver them through Pushover even when no dashboard is open.</p>
+      </div>
+      <label className="flex items-center gap-3 rounded-xl border border-line bg-night-700/50 p-4 text-sm font-semibold">
+        <input type="checkbox" checked={draft.enabled} onChange={(e) => onChange({ enabled: e.target.checked })} /> Enable download monitoring
+      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Pushover application token" hint="Create an application at pushover.net/apps">
+          <div className="flex gap-2">
+            <input className={inputCls} type={show ? 'text' : 'password'} value={draft.appToken} onChange={(e) => onChange({ appToken: e.target.value, clearAppToken: false })} placeholder={draft.pushoverAppTokenSet && !draft.clearAppToken ? 'Saved — leave blank to keep' : 'Paste here'} autoComplete="off" />
+            {draft.pushoverAppTokenSet && !draft.clearAppToken && <button type="button" className="btn-quiet px-2" onClick={() => onChange({ appToken: '', clearAppToken: true })}>Clear</button>}
+          </div>
+        </Field>
+        <Field label="Pushover user or group key" hint="Your recipient key from the Pushover dashboard">
+          <div className="flex gap-2">
+            <input className={inputCls} type={show ? 'text' : 'password'} value={draft.userKey} onChange={(e) => onChange({ userKey: e.target.value, clearUserKey: false })} placeholder={draft.pushoverUserKeySet && !draft.clearUserKey ? 'Saved — leave blank to keep' : 'Paste here'} autoComplete="off" />
+            {draft.pushoverUserKeySet && !draft.clearUserKey && <button type="button" className="btn-quiet px-2" onClick={() => onChange({ userKey: '', clearUserKey: true })}>Clear</button>}
+          </div>
+        </Field>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn-ghost" onClick={test} disabled={!canTest || testing}>{testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />} Send test notification</button>
+        <button type="button" className="btn-quiet" onClick={() => setShow((value) => !value)}>{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />} {show ? 'Hide keys' : 'Show keys'}</button>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {toggle('failed', 'Failed downloads')}
+        {toggle('warning', 'Persistent warnings')}
+        {toggle('stuck', 'Stuck downloads and imports')}
+        {toggle('health', 'Radarr/Sonarr health and outages')}
+        {toggle('recovered', 'Recovery notices')}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="No download progress" hint="Minutes before a moving download is considered stuck">
+          <input className={inputCls} type="number" min={1} max={1440} value={draft.stuckMinutes} onChange={(e) => onChange({ stuckMinutes: Number(e.target.value) })} />
+        </Field>
+        <Field label="Persistent warning" hint="Minutes a warning must remain before alerting">
+          <input className={inputCls} type="number" min={1} max={1440} value={draft.warningMinutes} onChange={(e) => onChange({ warningMinutes: Number(e.target.value) })} />
+        </Field>
+        <Field label="Import timeout" hint="Minutes an import may remain active">
+          <input className={inputCls} type="number" min={1} max={1440} value={draft.importMinutes} onChange={(e) => onChange({ importMinutes: Number(e.target.value) })} />
+        </Field>
+        <Field label="Service outage" hint="Minutes Radarr or Sonarr must be unreachable">
+          <input className={inputCls} type="number" min={1} max={1440} value={draft.outageMinutes} onChange={(e) => onChange({ outageMinutes: Number(e.target.value) })} />
+        </Field>
+      </div>
+    </div>
   );
 }
 

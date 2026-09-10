@@ -70,6 +70,7 @@ export function useDashboardData(view: View) {
   // dashboard poll stays responsive without needlessly burning API quota.
   const network = usePoll(api.network, 60_000, hasUnifi);
   const networkLive = usePoll(api.networkLive, 3_000, hasUnifi);
+  const notifications = usePoll(api.notifications, 30_000, true);
 
   // Sidebar service health: green when the last call succeeded, amber when it errored.
   const health = useMemo<ServiceHealth[]>(() => {
@@ -120,7 +121,7 @@ export function useDashboardData(view: View) {
   return {
     config, setConfig, configError, setup, setSetup, now, today,
     hasMediaServer, hasCalendar, hasQueue, hasSeerr, hasUnifi,
-    streams, recent, calendar, monthCalendar, queue, requests, links, network, networkLive,
+    streams, recent, calendar, monthCalendar, queue, requests, links, network, networkLive, notifications,
     weekOffset, setWeekOffset, weekStart, month, setMonth,
     health, available, nothingConfigured, downloadItems, recentlyRequested,
   };

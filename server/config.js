@@ -92,6 +92,20 @@ function envDefaults() {
       localApiKey: envSecret('UNIFI_LOCAL_API_KEY'),
       allowSelfSigned: env('UNIFI_ALLOW_SELF_SIGNED').toLowerCase() === 'true',
     },
+    notifications: {
+      enabled: env('NOTIFICATIONS_ENABLED').toLowerCase() === 'true',
+      pushoverAppToken: envSecret('PUSHOVER_APP_TOKEN'),
+      pushoverUserKey: envSecret('PUSHOVER_USER_KEY'),
+      failed: env('NOTIFY_FAILED', 'true').toLowerCase() === 'true',
+      warning: env('NOTIFY_WARNING', 'true').toLowerCase() === 'true',
+      stuck: env('NOTIFY_STUCK', 'true').toLowerCase() === 'true',
+      recovered: env('NOTIFY_RECOVERED', 'true').toLowerCase() === 'true',
+      health: env('NOTIFY_HEALTH', 'true').toLowerCase() === 'true',
+      stuckMinutes: num('NOTIFY_STUCK_MINUTES', 15),
+      warningMinutes: num('NOTIFY_WARNING_MINUTES', 5),
+      importMinutes: num('NOTIFY_IMPORT_MINUTES', 10),
+      outageMinutes: num('NOTIFY_OUTAGE_MINUTES', 5),
+    },
   };
 }
 
@@ -125,6 +139,7 @@ export const config = {
   seerr: {},
   sabnzbd: {},
   unifi: {},
+  notifications: {},
   links: [],
   auth: { enabled: false, managedByEnv: false },
 };
@@ -139,6 +154,7 @@ function merged() {
   const base = envDefaults();
   const out = { general: { ...base.general, ...(saved.general ?? {}) } };
   for (const s of SERVICES) out[s] = { ...base[s], ...(saved[s] ?? {}) };
+  out.notifications = { ...base.notifications, ...(saved.notifications ?? {}) };
   return out;
 }
 
@@ -163,6 +179,21 @@ function rebuild() {
     }
     config[s] = { ...fields, enabled: Boolean(fields.url && fields[SECRET_FIELD[s]]) };
   }
+  const n = m.notifications;
+  config.notifications = {
+    enabled: n.enabled === true,
+    pushoverAppToken: String(n.pushoverAppToken ?? '').trim(),
+    pushoverUserKey: String(n.pushoverUserKey ?? '').trim(),
+    failed: n.failed !== false,
+    warning: n.warning !== false,
+    stuck: n.stuck !== false,
+    recovered: n.recovered !== false,
+    health: n.health !== false,
+    stuckMinutes: clampMinutes(n.stuckMinutes, 15),
+    warningMinutes: clampMinutes(n.warningMinutes, 5),
+    importMinutes: clampMinutes(n.importMinutes, 10),
+    outageMinutes: clampMinutes(n.outageMinutes, 5),
+  };
   config.links = (Array.isArray(saved.links) ? saved.links : []).map(loadLink).filter(Boolean);
 
   // ADMIN_PASSWORD (or _FILE) always wins over a saved one -- the deliberate
@@ -278,6 +309,20 @@ export function getSettings() {
       out[s].allowSelfSigned = config[s].allowSelfSigned;
     }
   }
+  out.notifications = {
+    enabled: config.notifications.enabled,
+    pushoverAppTokenSet: Boolean(config.notifications.pushoverAppToken),
+    pushoverUserKeySet: Boolean(config.notifications.pushoverUserKey),
+    failed: config.notifications.failed,
+    warning: config.notifications.warning,
+    stuck: config.notifications.stuck,
+    recovered: config.notifications.recovered,
+    health: config.notifications.health,
+    stuckMinutes: config.notifications.stuckMinutes,
+    warningMinutes: config.notifications.warningMinutes,
+    importMinutes: config.notifications.importMinutes,
+    outageMinutes: config.notifications.outageMinutes,
+  };
   return out;
 }
 
@@ -308,6 +353,10 @@ function cleanUrl(value, label) {
 
 const LABELS = { plex: 'Plex', jellyfin: 'Jellyfin', radarr: 'Radarr', sonarr: 'Sonarr', seerr: 'Seerr', sabnzbd: 'SABnzbd', unifi: 'UniFi' };
 const str = (v, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : undefined);
+const clampMinutes = (value, fallback) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.min(24 * 60, Math.max(1, Math.round(n))) : fallback;
+};
 
 /**
  * Quick links: arbitrary bookmarks to anything on the network, not just the
@@ -385,6 +434,21 @@ export function saveSettings(patch) {
       if (p.allowSelfSigned !== undefined) cur.allowSelfSigned = p.allowSelfSigned === true;
     }
     next[s] = cur;
+  }
+
+  if (patch.notifications && typeof patch.notifications === 'object') {
+    const p = patch.notifications;
+    const cur = { ...(next.notifications ?? {}) };
+    for (const field of ['enabled', 'failed', 'warning', 'stuck', 'recovered', 'health']) {
+      if (p[field] !== undefined) cur[field] = p[field] === true;
+    }
+    for (const field of ['stuckMinutes', 'warningMinutes', 'importMinutes', 'outageMinutes']) {
+      if (p[field] !== undefined) cur[field] = clampMinutes(p[field], config.notifications[field]);
+    }
+    for (const field of ['pushoverAppToken', 'pushoverUserKey']) {
+      if (p[field] !== undefined && p[field] !== null) cur[field] = str(p[field], 200) ?? '';
+    }
+    next.notifications = cur;
   }
 
   writeSettingsFile(next);

@@ -52,14 +52,14 @@ function dispatcherFor(allowSelfSigned) {
   return selfSignedDispatcher;
 }
 
-async function request(url, { headers = {}, method = 'GET', body, timeoutMs = DEFAULT_TIMEOUT_MS, hops = 2, allowSelfSigned = false } = {}) {
+async function request(url, { headers = {}, method = 'GET', body, form, timeoutMs = DEFAULT_TIMEOUT_MS, hops = 2, allowSelfSigned = false } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       method,
       headers: { Accept: 'application/json', ...headers },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: form === undefined ? (body === undefined ? undefined : JSON.stringify(body)) : new URLSearchParams(form),
       signal: controller.signal,
       dispatcher: dispatcherFor(allowSelfSigned),
       // Follow redirects ourselves, so a hop cannot land on an address the
@@ -73,7 +73,7 @@ async function request(url, { headers = {}, method = 'GET', body, timeoutMs = DE
     // A UDM's self-signed exception must never follow a redirect onto a
     // different host. Keep normal certificate verification everywhere else.
     const sameOrigin = new URL(next).origin === new URL(url).origin;
-    return await request(next, { headers, method, body, timeoutMs, hops: hops - 1, allowSelfSigned: allowSelfSigned && sameOrigin });
+    return await request(next, { headers, method, body, form, timeoutMs, hops: hops - 1, allowSelfSigned: allowSelfSigned && sameOrigin });
   } catch (err) {
     // A refused address is a clear answer, not a network failure — say so plainly.
     if (err instanceof UpstreamError) throw err;

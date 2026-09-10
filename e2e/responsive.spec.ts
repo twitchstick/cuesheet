@@ -19,6 +19,16 @@ test('shows the matching nav for this viewport, not both', async ({ page }, test
   }
 });
 
+test('notification controls and incident bell are reachable', async ({ page }) => {
+  await page.goto('/#/setup');
+  const notificationStep = page.locator('ol').getByRole('button', { name: /Notifications/ });
+  await expect(notificationStep).toBeVisible();
+  await notificationStep.click();
+  await expect(page.getByText('Enable download monitoring')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send test notification' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
+});
+
 test('no horizontal overflow on the overview page', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('Nova')).toBeVisible(); // wait for real content, not just the shell

@@ -7,6 +7,8 @@ for fixes.
 
 ## Unreleased
 
+## [2.9.0] — 2026-09-09
+
 ### Added
 
 - **UniFi network pulse.** Connect an official UniFi Site Manager API key
@@ -15,6 +17,14 @@ for fixes.
   with multiple sites can choose which gateway Cuesheet follows. The live
   meter reads the gateway's official real-time device statistics every three
   seconds and falls back to the latest five-minute sample when unavailable.
+- **Actionable notifications.** A durable server-side monitor now detects
+  failed downloads, persistent warnings, downloads with no progress, long
+  imports, Radarr/Sonarr health warnings, and service outages. The header bell
+  keeps an in-app incident history, while optional Pushover delivery sends one
+  deduplicated alert and a low-priority recovery notice. Alert categories and
+  timing thresholds are configurable in Settings.
+- **Visible app version.** The desktop sidebar shows the running Cuesheet
+  version beneath Settings.
 
 ## [2.8.0] — 2026-09-04
 

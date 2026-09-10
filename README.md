@@ -105,10 +105,17 @@ an update.
 | `SABNZBD_API_KEY` | SABnzbd → Config → General → API Key |
 | `UNIFI_API_KEY` | UniFi Site Manager → Settings → API Keys → Create New API Key |
 | `UNIFI_LOCAL_API_KEY` (optional) | UniFi Network → Control Plane → Integrations. Used with the UDM Pro LAN URL for true live rates. |
+| `PUSHOVER_APP_TOKEN` / `PUSHOVER_USER_KEY` (optional) | Register a Pushover application, then copy its API token and your user or delivery-group key. |
 
 These names are the environment variables, which exist for docker compose users. On Unraid you enter the same values in the setup wizard instead.
 
 The UniFi card uses Ubiquiti's official Site Manager API through `https://api.ui.com`. If the key can see more than one site, test the connection in Cuesheet and select the UDM Pro site from the list. For true live download/upload rates on consoles that cannot use Ubiquiti's cloud connector, also enter the UDM Pro's LAN URL and a local Network API key in Settings. Enable the self-signed-certificate option when the console uses its default local certificate; that exception is scoped only to the configured UDM Pro address. Live rates refresh every three seconds. The seven-day transfer figures are calculated from UniFi's available hourly WAN-rate samples, so a partial history is labeled in the card.
+
+### Notifications
+
+Cuesheet can monitor Radarr and Sonarr on the server even when no dashboard is open. Enable **Notifications** in Settings to record failed downloads, persistent warnings, stalled progress, long imports, health warnings, and service outages. A bell in the header shows active and recent incidents. Incident state is kept in `notifications.json` beside `settings.json`, so restarts do not resend the same problem.
+
+Pushover delivery is optional: enter an application token and user or group key, then use **Send test notification** before saving. Failed and warning alerts use normal priority so Pushover quiet hours remain effective; recovery notices are low priority. Paused and deliberately queued downloads are never treated as stuck. Thresholds and each alert category are configurable in the same screen.
 
 Use LAN addresses on Apollo (for example `http://192.168.1.10:32400`), or `http://<container-name>:<port>` if the containers share a custom Docker network.
 

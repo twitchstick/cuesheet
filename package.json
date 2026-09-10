@@ -1,6 +1,6 @@
 {
   "name": "cuesheet",
-  "version": "0.1.0",
+  "version": "2.9.0",
   "description": "A calm media dashboard for Plex/Jellyfin, Radarr, Sonarr and Seerr",
   "private": true,
   "type": "module",

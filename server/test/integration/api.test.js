@@ -158,6 +158,14 @@ describe('/api/network (UniFi)', () => {
   });
 });
 
+describe('/api/notifications', () => {
+  test('GET /api/notifications returns the durable in-app feed', async () => {
+    const { status, body } = await get('/api/notifications');
+    assert.equal(status, 200);
+    assert.deepEqual(body, { active: [], history: [], unread: 0 });
+  });
+});
+
 describe('cross-site write protection', () => {
   test('a PUT from a foreign Origin is rejected', async () => {
     const { status, body } = await putWithOrigin('/api/settings', 'http://evil.example', { general: { serverName: 'Hijacked' } });

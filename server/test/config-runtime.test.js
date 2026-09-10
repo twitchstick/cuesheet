@@ -18,6 +18,7 @@ const SERVICE_ENV_VARS = [
   'RADARR_URL', 'RADARR_API_KEY', 'SONARR_URL', 'SONARR_API_KEY',
   'SEERR_URL', 'SEERR_API_KEY', 'SEERR_USER_ID', 'SABNZBD_URL', 'SABNZBD_API_KEY',
   'UNIFI_API_URL', 'UNIFI_API_KEY', 'UNIFI_SITE_ID',
+  'NOTIFICATIONS_ENABLED', 'PUSHOVER_APP_TOKEN', 'PUSHOVER_USER_KEY',
 ];
 
 let dataDir;
@@ -44,6 +45,22 @@ describe('a fresh boot with nothing configured', () => {
 });
 
 describe('saveSettings()', () => {
+  test('notification credentials stay private while preferences are persisted', () => {
+    const result = cfg.saveSettings({ notifications: {
+      enabled: true,
+      pushoverAppToken: 'app-secret',
+      pushoverUserKey: 'user-secret',
+      stuckMinutes: 22,
+      failed: true,
+    } });
+    assert.equal(result.notifications.enabled, true);
+    assert.equal(result.notifications.pushoverAppTokenSet, true);
+    assert.equal(result.notifications.pushoverUserKeySet, true);
+    assert.equal(result.notifications.stuckMinutes, 22);
+    assert.equal(JSON.stringify(result).includes('app-secret'), false);
+    assert.equal(cfg.config.notifications.pushoverAppToken, 'app-secret');
+  });
+
   test('validates and persists a new service, enabling it immediately', () => {
     const result = cfg.saveSettings({ radarr: { url: 'http://10.0.0.5:7878', apiKey: 'key123' } });
     assert.equal(result.radarr.url, 'http://10.0.0.5:7878');
